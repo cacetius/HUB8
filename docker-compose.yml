@@ -1,0 +1,37 @@
+version: "3.9"
+
+# Ambiente de desenvolvimento. DB2 não está incluído aqui de propósito —
+# a imagem oficial (ibmcom/db2 / icr.io/db2_community/db2) exige aceite de
+# licença IBM e é pesada (~5GB); instruções em docs/DEPLOYMENT.md.
+# Este compose sobe SQL Server (imagem pública Microsoft) para dev rápido,
+# já que a aplicação é database-agnostic pelo Adapter.
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: hub8-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "changeme"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - hub8_sqlserver_data:/var/opt/mssql
+
+  api:
+    build:
+      context: ./backend
+    container_name: hub8-api
+    env_file: .env
+    environment:
+      DATABASE_PROVIDER: sqlserver
+      DB_HOST: sqlserver
+      DB_PORT: 1433
+    ports:
+      - "3000:3000"
+    depends_on:
+      - sqlserver
+
+volumes:
+  hub8_sqlserver_data:
