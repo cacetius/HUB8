@@ -1,21 +1,9 @@
-import { IDatabaseAdapter } from '../adapters/DatabaseAdapter';
+class AuditRepository {
+  constructor(db) {
+    this.db = db;
+  }
 
-export interface AuditEntry {
-  userId: number | null;
-  action: 'LOGIN' | 'LOGOUT' | 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE' | 'EXPORT' | 'CONFIGURATION_CHANGE' | 'PERMISSION_CHANGE';
-  entity: string;
-  entityId?: string | number;
-  oldValue?: any;
-  newValue?: any;
-  ip?: string;
-  userAgent?: string;
-  source?: string;
-}
-
-export class AuditRepository {
-  constructor(private db: IDatabaseAdapter) {}
-
-  async record(entry: AuditEntry): Promise<void> {
+  async record(entry) {
     await this.db.execute(
       `INSERT INTO AUDIT_LOG (USER_ID, ACTION, ENTITY, ENTITY_ID, OLD_VALUE, NEW_VALUE, IP, USER_AGENT, SOURCE)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -33,7 +21,7 @@ export class AuditRepository {
     );
   }
 
-  async findByEntity(entity: string, entityId: string, page: number, pageSize: number) {
+  async findByEntity(entity, entityId, page, pageSize) {
     return this.db.paginate(
       'SELECT * FROM AUDIT_LOG WHERE ENTITY = ? AND ENTITY_ID = ?',
       [entity, entityId],
@@ -43,3 +31,5 @@ export class AuditRepository {
     );
   }
 }
+
+module.exports = { AuditRepository };

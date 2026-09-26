@@ -1,0 +1,134 @@
+/**
+ * DB2 adapter backed by IBM's `ibm_db` driver.
+ * The driver is loaded only when DB2 is selected, so SQL Server deployments
+ * don't need the native DB2 client installed.
+ */
+class Db2Adapter {
+  constructor(config) {
+    this.connectionString =
+      `DATABASE=${config.database};HOSTNAME=${config.host};PORT=${config.port};` +
+      `PROTOCOL=TCPIP;UID=${config.user};PWD=${config.password};`;
+  }
+
+  async connect() {
+    const ibmDb = require('ibm_db');
+    this.pool = new ibmDb.Pool();
+
+    await new Promise((resolve, reject) => {
+      this.pool.open(this.connectionString, (error, connection) => {
+        if (error) return reject(error);
+        this.pool.close(connection, resolve);
+      });
+    });
+  }
+
+  async disconnect() {
+    if (!this.pool?.closeAll) return;
+    await new Promise((resolve) => this.pool.closeAll(resolve));
+  }
+
+  async healthCheck() {
+    try {
+      await this.query('SELECT 1 FROM SYSIBM.SYSDUMMY1');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  withConnection(callback) {
+    return new Promise((resolve, reject) => {
+      this.pool.open(this.connectionString, async (error, connection) => {
+        if (error) return reject(error);
+
+        try {
+          const result = await callback(connection);
+          this.pool.close(connection, () => resolve(result));
+        } catch (queryError) {
+          this.pool.close(connection, () => reject(queryError));
+        }
+      });
+    });
+  }
+
+  async query(sql, params = []) {
+    return this.withConnection((connection) =>
+      new Promise((resolve, reject) => {
+        connection.query(sql, params, (error, rows) => {
+          if (error) return reject(error);
+          resolve({ rows, rowCount: rows.length });
+        });
+      })
+    );
+  }
+
+  async execute(sql, params = []) {
+    return this.withConnection((connection) =>
+      new Promise((resolve, reject) => {
+        connection.query(sql, params, (error, result) => {
+          if (error) return reject(error);
+          resolve({ affectedRows: Array.isArray(result) ? result.length : 1 });
+        });
+      })
+    );
+  }
+
+  async paginate(baseSql, params, page, pageSize, orderBy) {
+    const offset = (page - 1) * pageSize;
+    const pageSql =
+      `${baseSql} ORDER BY ${orderBy} OFFSET ${offset} ROWS FETCH FIRST ${pageSize} ROWS ONLY`;
+    const countSql = `SELECT COUNT(*) AS TOTAL FROM (${baseSql}) AS T`;
+    const [data, count] = await Promise.all([
+      this.query(pageSql, params),
+      this.query(countSql, params),
+    ]);
+
+    return {
+      rows: data.rows,
+      total: Number(count.rows[0]?.TOTAL ?? 0),
+      page,
+      pageSize,
+    };
+  }
+
+  async transaction(callback) {
+    return this.withConnection(
+      (connection) =>
+        new Promise((resolve, reject) => {
+          connection.beginTransaction(async (error) => {
+            if (error) return reject(error);
+
+            const transactionAdapter = {
+              ...this,
+              query: (sql, params = []) =>
+                new Promise((done, fail) => {
+                  connection.query(sql, params, (queryError, rows) => {
+                    if (queryError) return fail(queryError);
+                    done({ rows, rowCount: rows.length });
+                  });
+                }),
+              execute: (sql, params = []) =>
+                new Promise((done, fail) => {
+                  connection.query(sql, params, (queryError) => {
+                    if (queryError) return fail(queryError);
+                    done({ affectedRows: 1 });
+                  });
+                }),
+            };
+
+            try {
+              const result = await callback(transactionAdapter);
+              connection.commitTransaction((commitError) => {
+                if (commitError) return reject(commitError);
+                resolve(result);
+              });
+            } catch (transactionError) {
+              connection.rollbackTransaction(() => reject(transactionError));
+            }
+          });
+        })
+    );
+  }
+}
+
+module.exports = { Db2Adapter };

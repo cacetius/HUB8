@@ -6,42 +6,24 @@
  *   1. No navegador com o HUB 7 aberto, rode no console:
  *        copy(localStorage.getItem('fhw4'))
  *      e salve o conteúdo em legacy-export.json
- *   2. ts-node database/seeds/migrate-legacy.ts ./legacy-export.json
+ *   2. node database/seeds/migrate-legacy.js ./legacy-export.json
  *
  * Fluxo (item 9 do escopo): Leitura → Validação → Conversão → API/Adapter → Validação final.
  * Idempotente: usa MERGE/checagem por NAME para não duplicar em reexecuções.
  */
-import * as fs from 'fs';
-import { getDatabaseAdapter } from '../../backend/src/config/database';
-
-interface LegacyApp {
-  id: string;
-  icon: string;
-  name: string;
-  subtitle?: string;
-  desc?: string;
-  category?: string;
-  filename: string;
-  ops?: string[];
-}
-
-interface LegacyData {
-  config?: { setor?: string; turno?: string; monitor?: string; lider?: string };
-  apps?: LegacyApp[];
-  operadores?: { id: string; nome: string }[];
-  operacoes?: { id: string; nome: string }[];
-}
+const fs = require('node:fs');
+const { getDatabaseAdapter } = require('../../backend/src/config/database');
 
 async function main() {
   const filePath = process.argv[2];
   if (!filePath) {
-    console.error('Uso: ts-node migrate-legacy.ts <arquivo-exportado.json>');
+    console.error('Uso: node migrate-legacy.js <arquivo-exportado.json>');
     process.exit(1);
   }
 
   // 1. Leitura
   const raw = fs.readFileSync(filePath, 'utf-8');
-  let data: LegacyData;
+  let data;
   try {
     data = JSON.parse(raw);
   } catch (e) {

@@ -18,7 +18,7 @@ Apps internos (HUB.js) ───┤
                            ▼
                      Repositories         (uma classe por entidade; SQL nunca aparece fora daqui)
                            ▼
-                   DatabaseAdapter        (interface comum: query, execute, transaction)
+                   DatabaseAdapter        (contrato: query, execute, transaction)
                     ┌──────┴──────┐
                 Db2Adapter    SqlServerAdapter
                     │                │
@@ -33,7 +33,7 @@ outra coisa (não deveria acontecer, mas a regra existe para isso), só os Adapt
 DB2 e SQL Server divergem em paginação (`FETCH FIRST n ROWS ONLY` vs `OFFSET/FETCH`), tipos
 (`DECFLOAT`/`GENERATED ALWAYS AS IDENTITY` vs `IDENTITY`/`UNIQUEIDENTIFIER`), e sintaxe de upsert
 (`MERGE` em ambos, mas com nuances). Em vez de um ORM tentando esconder essas diferenças (e vazando
-comportamento estranho quando falha), cada Adapter implementa a mesma interface `IDatabaseAdapter`
+comportamento estranho quando falha), cada Adapter implementa o mesmo contrato JavaScript
 com SQL nativo e testado para o banco em questão. O `DATABASE_PROVIDER` no `.env` decide qual
 Adapter é instanciado — o resto da aplicação nunca sabe qual banco está por trás.
 
@@ -61,4 +61,4 @@ Ver `docs/APP_INTEGRATION.md` para o protocolo completo.
 ```
 
 Erros de banco/driver nunca são repassados ao cliente — são logados no servidor e traduzidos para
-um `code` genérico (ver `middleware/errorHandler.ts`).
+um `code` genérico (ver `middleware/errorHandler.js`).
