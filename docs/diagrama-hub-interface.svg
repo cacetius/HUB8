@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">HUB Fahrwerk — modernização da interface</title>
+  <desc id="description">Diagrama da interface responsiva do HUB, desenvolvida com JavaScript e CSS, mantendo os aplicativos e o armazenamento existentes sem alteração do banco de dados.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a1424"/>
+      <stop offset="1" stop-color="#102b47"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#52d1f7"/>
+      <stop offset="1" stop-color="#238bd1"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#42dda2"/>
+      <stop offset="1" stop-color="#16a978"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#020812" flood-opacity=".3"/>
+    </filter>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1l9 5-9 5" fill="none" stroke="#51c9f1" stroke-width="2"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1l9 5-9 5" fill="none" stroke="#42dda2" stroke-width="2"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #9db1cb; }
+      .bright { fill: #f2f7ff; }
+      .small { font-size: 16px; }
+      .label { font-size: 14px; font-weight: 700; letter-spacing: 1.6px; }
+      .card { fill: #12233a; stroke: #29405d; stroke-width: 1.5; }
+      .inner { fill: #0e1c30; stroke: #2b4564; stroke-width: 1.2; }
+      .code { fill: #a8c2df; font-family: Consolas, "Courier New", monospace; font-size: 17px; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#background)"/>
+  <circle cx="1390" cy="112" r="260" fill="#167ab3" opacity=".08"/>
+  <circle cx="111" cy="805" r="265" fill="#18a87c" opacity=".06"/>
+
+  <text x="90" y="83" class="label" fill="#56cdf1">HUB FAHRWERK  /  EXPERIÊNCIA DIGITAL</text>
+  <text x="90" y="143" class="bright" font-size="42" font-weight="700">Uma central mais clara. O mesmo HUB por trás.</text>
+  <text x="90" y="181" class="muted" font-size="20">Interface responsiva em JavaScript e CSS — sem migração de dados nem mudança no banco.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="233" width="1420" height="391" rx="26" class="card"/>
+  </g>
+  <rect x="90" y="233" width="1420" height="73" rx="26" fill="#142d49"/>
+  <path d="M90 280v26h1420v-26" fill="#142d49"/>
+  <circle cx="129" cy="270" r="8" fill="#42dda2"/>
+  <text x="153" y="278" class="bright" font-size="20" font-weight="700">PAINEL HUB</text>
+  <text x="345" y="277" class="muted" font-size="15">uma experiência consistente em desktop e celular</text>
+  <rect x="1223" y="253" width="247" height="34" rx="17" fill="#173a53" stroke="#2e607c"/>
+  <text x="1346" y="275" text-anchor="middle" fill="#9de6ff" font-size="13" font-weight="700">DADOS E REGRAS PRESERVADOS</text>
+
+  <g>
+    <rect x="126" y="335" width="350" height="239" rx="18" class="inner"/>
+    <rect x="149" y="358" width="53" height="53" rx="15" fill="#173c5d"/>
+    <text x="176" y="394" text-anchor="middle" font-size="26">🧭</text>
+    <text x="220" y="379" class="bright" font-size="19" font-weight="700">Visão do turno</text>
+    <text x="220" y="404" class="muted small">Setor, responsáveis e horário</text>
+    <path d="M151 432h298" stroke="#263d59"/>
+    <text x="151" y="465" class="muted small">• Resumo dos aplicativos</text>
+    <text x="151" y="496" class="muted small">• Busca instantânea</text>
+    <text x="151" y="527" class="muted small">• Filtros por categoria</text>
+  </g>
+
+  <g>
+    <rect x="511" y="335" width="350" height="239" rx="18" class="inner"/>
+    <rect x="534" y="358" width="53" height="53" rx="15" fill="#173c5d"/>
+    <text x="561" y="394" text-anchor="middle" font-size="26">▦</text>
+    <text x="605" y="379" class="bright" font-size="19" font-weight="700">Apps em destaque</text>
+    <text x="605" y="404" class="muted small">Cartões e navegação familiares</text>
+    <path d="M536 432h298" stroke="#263d59"/>
+    <text x="536" y="465" class="muted small">• Abre módulos no visualizador atual</text>
+    <text x="536" y="496" class="muted small">• Menus e ações mantidos</text>
+    <text x="536" y="527" class="muted small">• Layout adaptado ao tamanho da tela</text>
+  </g>
+
+  <g>
+    <rect x="896" y="335" width="350" height="239" rx="18" class="inner"/>
+    <rect x="919" y="358" width="53" height="53" rx="15" fill="#173c5d"/>
+    <text x="946" y="394" text-anchor="middle" font-size="25">⚙</text>
+    <text x="990" y="379" class="bright" font-size="19" font-weight="700">Recursos existentes</text>
+    <text x="990" y="404" class="muted small">Sem interromper o fluxo atual</text>
+    <path d="M921 432h298" stroke="#263d59"/>
+    <text x="921" y="465" class="muted small">• Turnos, operadores e operações</text>
+    <text x="921" y="496" class="muted small">• Inclusão e gerenciamento de apps</text>
+    <text x="921" y="527" class="muted small">• Backup, exportação e restauração</text>
+  </g>
+
+  <g>
+    <rect x="1281" y="335" width="193" height="239" rx="18" fill="#10243a" stroke="#286254" stroke-width="1.5"/>
+    <rect x="1301" y="358" width="48" height="48" rx="14" fill="#123e3c"/>
+    <text x="1325" y="390" text-anchor="middle" font-size="24">💾</text>
+    <text x="1301" y="440" class="bright" font-size="17" font-weight="700">Armazenamento</text>
+    <text x="1301" y="468" fill="#42dda2" font-size="14" font-weight="700">LOCAL ATUAL</text>
+    <text x="1301" y="501" class="muted" font-size="14">fhw4 + uploads</text>
+    <text x="1301" y="527" class="muted" font-size="14">backups preservados</text>
+  </g>
+
+  <g fill="none" stroke="#51c9f1" stroke-width="2.5" marker-end="url(#arrow-blue)">
+    <path d="M476 455h28"/>
+    <path d="M861 455h28"/>
+  </g>
+  <path d="M1246 455h25" fill="none" stroke="#42dda2" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+
+  <text x="90" y="689" class="label" fill="#56cdf1">IMPLEMENTAÇÃO</text>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="714" width="441" height="112" rx="18" class="card"/>
+    <rect x="553" y="714" width="441" height="112" rx="18" class="card"/>
+    <rect x="1016" y="714" width="494" height="112" rx="18" class="card"/>
+  </g>
+
+  <rect x="112" y="737" width="44" height="44" rx="12" fill="#153c59"/>
+  <text x="134" y="766" text-anchor="middle" fill="#8ce1ff" font-size="14" font-weight="800">JS</text>
+  <text x="174" y="753" class="bright" font-size="18" font-weight="700">Interações em JavaScript</text>
+  <text x="174" y="782" class="code">hub-ui.js · busca + filtros</text>
+
+  <rect x="575" y="737" width="44" height="44" rx="12" fill="#153c59"/>
+  <text x="597" y="766" text-anchor="middle" fill="#8ce1ff" font-size="14" font-weight="800">CSS</text>
+  <text x="637" y="753" class="bright" font-size="18" font-weight="700">Tema adaptável</text>
+  <text x="637" y="782" class="code">hub-ui.css · desktop + celular</text>
+
+  <rect x="1038" y="737" width="44" height="44" rx="12" fill="#173d34"/>
+  <text x="1060" y="766" text-anchor="middle" fill="#61dfaa" font-size="18" font-weight="800">✓</text>
+  <text x="1100" y="753" class="bright" font-size="18" font-weight="700">Banco e API sem alterações</text>
+  <text x="1100" y="782" class="code">DB2 / SQL Server · fora do escopo</text>
+
+  <path d="M307 624v70" fill="none" stroke="#51c9f1" stroke-width="2" stroke-dasharray="6 7"/>
+  <path d="M774 624v70" fill="none" stroke="#51c9f1" stroke-width="2" stroke-dasharray="6 7"/>
+  <path d="M1263 624v70" fill="none" stroke="#42dda2" stroke-width="2" stroke-dasharray="6 7"/>
+
+  <text x="90" y="864" class="muted" font-size="14">HUB Fahrwerk · modernização visual e navegação · setembro de 2026</text>
+  <text x="1510" y="864" text-anchor="end" fill="#6f88a6" font-size="13">VISÃO GERAL DA SOLUÇÃO</text>
+</svg>

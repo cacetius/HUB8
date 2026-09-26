@@ -264,6 +264,7 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;
 #vw-frame{flex:1;border:none;width:100%;background:#fff}
 
 </style>
+<link rel="stylesheet" href="./hub-ui.css">
 </head>
 <body>
 
@@ -649,6 +650,7 @@ function render(){
     var d=document.createElement('div');
     d.className='acard';
     d.dataset.appid=app.id;
+    d.dataset.category=app.category||'';
     var gr=getIconBg(app);
     var isUpload=app.filename&&app.filename.indexOf('_upload_')===0;
     d.innerHTML=
@@ -1496,5 +1498,6 @@ tick();
 setInterval(tick,1000);
 
 </script>
+<script src="./hub-ui.js"></script>
 </body>
 </html>
