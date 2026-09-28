@@ -26,8 +26,13 @@ class AppRepository {
     return rows[0] ?? null;
   }
 
+  async findAnyById(id) {
+    const { rows } = await this.db.query('SELECT * FROM APPS WHERE ID = ?', [id]);
+    return rows[0] ?? null;
+  }
+
   async create(input, userId) {
-    const result = await this.db.execute(
+    const result = await this.db.insert(
       `INSERT INTO APPS (NAME, SUBTITLE, DESCRIPTION, CATEGORY, ICON, URL, STATUS, SORT_ORDER, MIN_ROLE_ID, CREATED_BY, UPDATED_BY)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [

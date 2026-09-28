@@ -1,13 +1,12 @@
 /**
- * DB2 adapter backed by IBM's `ibm_db` driver.
- * The driver is loaded only when DB2 is selected, so SQL Server deployments
- * don't need the native DB2 client installed.
+ * Acesso ao DB2 pelo driver oficial `ibm_db`.
+ * O driver só é carregado quando o projeto está configurado para usar DB2.
  */
 class Db2Adapter {
   constructor(config) {
     this.connectionString =
       `DATABASE=${config.database};HOSTNAME=${config.host};PORT=${config.port};` +
-      `PROTOCOL=TCPIP;UID=${config.user};PWD=${config.password};`;
+      `PROTOCOL=TCPIP;UID=${config.user};PWD={${String(config.password).replace(/}/g, '}}')}};`;
   }
 
   async connect() {
@@ -73,8 +72,35 @@ class Db2Adapter {
     );
   }
 
+  async insert(sql, params = []) {
+    return this.withConnection((connection) =>
+      new Promise((resolve, reject) => {
+        connection.query(sql, params, (error, result) => {
+          if (error) return reject(error);
+
+          connection.query(
+            'SELECT IDENTITY_VAL_LOCAL() AS ID FROM SYSIBM.SYSDUMMY1',
+            [],
+            (identityError, rows) => {
+              if (identityError) return reject(identityError);
+              const insertId = Number(rows[0]?.ID);
+              if (!Number.isSafeInteger(insertId) || insertId < 1) {
+                return reject(new Error('O DB2 não retornou o ID do registro criado.'));
+              }
+              resolve({
+                affectedRows: Array.isArray(result) ? result.length : 1,
+                insertId,
+              });
+            }
+          );
+        });
+      })
+    );
+  }
+
   async paginate(baseSql, params, page, pageSize, orderBy) {
     const offset = (page - 1) * pageSize;
+    // O DB2 usa OFFSET junto de FETCH FIRST para devolver uma página.
     const pageSql =
       `${baseSql} ORDER BY ${orderBy} OFFSET ${offset} ROWS FETCH FIRST ${pageSize} ROWS ONLY`;
     const countSql = `SELECT COUNT(*) AS TOTAL FROM (${baseSql}) AS T`;

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { verifyPassword } = require('../utils/password');
 const { env } = require('../config/env');
+const { validationError } = require('../utils/request');
 
 class AuthService {
   constructor(users, audit) {
@@ -9,15 +10,18 @@ class AuthService {
   }
 
   async login(username, password, ip, userAgent) {
+    if (typeof username !== 'string' || !username.trim() || typeof password !== 'string') {
+      throw validationError('Usuário ou senha inválidos.');
+    }
     const user = await this.users.findByUsername(username);
-    const invalidCredentials = () => {
+    const rejectInvalidCredentials = () => {
       const error = new Error('Usuário ou senha inválidos.');
       error.code = 'VALIDATION_ERROR';
       throw error;
     };
 
-    if (!user) invalidCredentials();
-    if (!(await verifyPassword(password, user.PASSWORD_HASH))) invalidCredentials();
+    if (!user) return rejectInvalidCredentials();
+    if (!(await verifyPassword(password, user.PASSWORD_HASH))) return rejectInvalidCredentials();
 
     const { roles, permissions } = await this.users.getRolesAndPermissions(user.ID);
     const token = jwt.sign(
@@ -56,7 +60,7 @@ class AuthService {
       ip,
       userAgent,
     });
-    // JWTs are stateless; revocation requires a token blacklist.
+    // O token continua válido até expirar; revogação exige uma lista de bloqueio.
   }
 }
 

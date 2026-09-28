@@ -1,34 +1,24 @@
 /**
- * Contraparte de hub-client.js, roda no HUB (página que contém o <iframe>
- * do app). Valida origem, tipo e payload antes de responder — nunca aceita
- * mensagens arbitrárias (item 18 do escopo).
- *
- * Uso no HUB:
- *   import { createHubBridge } from './services/hub-host-bridge.js';
- *   createHubBridge({
- *     allowedOrigins: ['https://apps.seudominio.local'],
- *     getApiToken: () => currentSessionToken,
- *     apiBaseUrl: '/api/v1',
- *   });
+ * Recebe no HUB as solicitações enviadas pelos aplicativos internos.
+ * Só processa mensagens vindas de origens autorizadas.
  */
 export function createHubBridge({ allowedOrigins, getApiToken, apiBaseUrl }) {
-  async function authedFetch(path) {
-    const res = await fetch(`${apiBaseUrl}${path}`, {
+  async function fetchFromApi(path) {
+    const response = await fetch(`${apiBaseUrl}${path}`, {
       headers: { Authorization: `Bearer ${getApiToken()}` },
     });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message);
-    return json.data;
+    const body = await response.json();
+    if (!body.success) throw new Error(body.message);
+    return body.data;
   }
 
   const handlers = {
-    GET_OPERATORS: () => authedFetch('/operators?pageSize=100'),
-    GET_OPERATIONS: () => authedFetch('/operations?pageSize=100'),
-    GET_CURRENT_SHIFT: () => authedFetch('/shifts/current'),
-    GET_CURRENT_USER: () => authedFetch('/auth/me'),
-    GET_CONFIG: () => authedFetch('/dashboard/summary'),
+    GET_OPERATORS: () => fetchFromApi('/operators?pageSize=100'),
+    GET_OPERATIONS: () => fetchFromApi('/operations?pageSize=100'),
+    GET_CURRENT_SHIFT: () => fetchFromApi('/shifts/current'),
+    GET_CURRENT_USER: () => fetchFromApi('/auth/me'),
+    GET_CONFIG: () => fetchFromApi('/dashboard/summary'),
     NOTIFY: async (payload) => {
-      // eslint-disable-next-line no-console
       console.info('[HUB notify from app]', payload);
       return { received: true };
     },
@@ -39,20 +29,32 @@ export function createHubBridge({ allowedOrigins, getApiToken, apiBaseUrl }) {
   }
 
   window.addEventListener('message', async (event) => {
-    if (!allowedOrigins.includes(event.origin)) return; // descarta silenciosamente origem não confiável
-    const msg = event.data;
-    if (!msg || msg.source !== 'hub-app' || !msg.type || !msg.requestId) return;
+    if (!allowedOrigins.includes(event.origin)) return;
+    const message = event.data;
+    if (!message || message.source !== 'hub-app' || !message.type || !message.requestId) return;
 
-    const handler = handlers[msg.type];
-    if (!handler) {
-      return respond(event.source, event.origin, msg.requestId, null, `Tipo de mensagem desconhecido: ${msg.type}`);
+    const handleRequest = handlers[message.type];
+    if (!handleRequest) {
+      return respond(
+        event.source,
+        event.origin,
+        message.requestId,
+        null,
+        `Tipo de mensagem desconhecido: ${message.type}`
+      );
     }
 
     try {
-      const payload = await handler(msg.payload);
-      respond(event.source, event.origin, msg.requestId, payload, null);
-    } catch (e) {
-      respond(event.source, event.origin, msg.requestId, null, 'Falha ao processar solicitação.');
+      const payload = await handleRequest(message.payload);
+      respond(event.source, event.origin, message.requestId, payload, null);
+    } catch {
+      respond(
+        event.source,
+        event.origin,
+        message.requestId,
+        null,
+        'Falha ao processar solicitação.'
+      );
     }
   });
 }

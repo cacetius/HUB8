@@ -7,7 +7,7 @@ class AuthController {
 
   login = async (req, res, next) => {
     try {
-      const { username, password } = req.body;
+      const { username, password } = req.body ?? {};
       const result = await this.service.login(
         username,
         password,

@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "test": "jest",
     "migrate:db2": "node scripts/run-migrations.js db2",
-    "migrate:sqlserver": "node scripts/run-migrations.js sqlserver"
+    "migrate:sqlserver": "node scripts/run-migrations.js sqlserver",
+    "seed:factory-permissions": "node scripts/update-factory-permissions.js",
+    "bootstrap:admin": "node scripts/create-admin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

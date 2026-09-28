@@ -15,4 +15,6 @@ function checkDirectory(directory) {
   }
 }
 
-checkDirectory(path.join(__dirname, '..', 'src'));
+const backendRoot = path.join(__dirname, '..');
+checkDirectory(path.join(backendRoot, 'src'));
+checkDirectory(path.join(backendRoot, 'scripts'));

@@ -1,44 +1,99 @@
-# DEPLOYMENT.md
+# Implantação
 
-## Desenvolvimento local (SQL Server via Docker)
+## Limites conhecidos
 
-```bash
-cp .env.example .env
-docker compose up -d sqlserver
-cd backend && npm install
-# rodar as migrations (001_initial_schema.sql + seeds) contra o container,
-# manualmente via sqlcmd/Azure Data Studio ou via um runner de migrations de sua escolha
-npm run dev
+O backend inclui CRUD de Apps, Operators, Operations, Shifts e administração de usuários, além de
+consulta para Dashboard. Ainda não pode ser declarado pronto para a fábrica: os fluxos precisam ser
+integrados à interface atual e homologados na instância DB2 escolhida. Nenhum comando abaixo foi
+executado contra um banco real durante esta revisão.
+
+## Preparação do ambiente
+
+Use Node.js 20 e instale as dependências dentro de `backend`. Configure variáveis em um gerenciador
+de segredos da infraestrutura; não publique `.env`, senhas ou tokens no repositório.
+
+Em produção, configure:
+
+- `APP_ENV=production`
+- `DATABASE_PROVIDER=db2` ou `sqlserver`
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` e `DB_PASSWORD` com uma conta de serviço de privilégio mínimo
+- `JWT_SECRET` aleatório, exclusivo e com pelo menos 32 caracteres
+- `ALLOWED_APP_ORIGINS` com as origens HTTPS exatas dos clientes autorizados, separadas por vírgula
+- `PORT`, se a porta padrão 3000 não for usada
+
+A API recusa subir em produção sem os valores obrigatórios, segredo forte e allowlist HTTPS. A
+conexão do SQL Server exige criptografia e não confia em certificado autoassinado em produção.
+Configure certificado TLS válido e terminação HTTPS no proxy corporativo. Para DB2, confirme com
+infraestrutura como TLS será terminado e restrinja a porta do banco à rede da aplicação.
+
+O seed libera todas as permissões para ADMIN, leitura básica para OPERADOR e CRUD operacional de
+Apps, Operators, Operations e Shifts para SUPERVISOR, LIDER e MONITOR. Essas três funções não
+recebem `users.manage`, `system.manage` nem exportação de relatórios. VISUALIZADOR ainda não recebe
+permissões. Confirme essa matriz com a fábrica antes de ativar as contas.
+
+## Banco novo e usuário inicial
+
+Os comandos de migração abaixo aplicam o schema inicial e os seeds. Eles se destinam somente a um
+banco vazio, não fazem upgrade de schema existente e recusam executar se já encontrarem a tabela
+`USERS`. Faça snapshot/backup antes de qualquer implantação e valide os scripts primeiro em
+homologação:
+
+```powershell
+Set-Location backend
+npm ci
+$env:DATABASE_PROVIDER = "db2"
+npm run migrate:db2
 ```
 
-## Desenvolvimento local (DB2)
+Para uma instalação SQL Server, use `DATABASE_PROVIDER=sqlserver` e `npm run migrate:sqlserver`.
 
-DB2 não está no `docker-compose.yml` de propósito: a imagem oficial (`icr.io/db2_community/db2`)
-exige aceite explícito da licença IBM e roda melhor em containers privilegiados/Linux nativo —
-adicionar sem esse consentimento seria fazer suposição por você. Passos:
+O comando aplica `001_initial_schema.sql` e `002_roles_permissions.sql`, sem criar tabelas de
+controle de migration nem alterar schemas além dos scripts existentes. Em caso de falha parcial,
+pare e peça ao DBA para inspecionar o banco; não repita o comando sobre um schema parcial.
 
-```bash
-docker pull icr.io/db2_community/db2:11.5.9.0
-docker run -itd --name hub8-db2 --privileged=true \
-  -p 50000:50000 -e LICENSE=accept -e DB2INST1_PASSWORD=changeme -e DBNAME=HUB8 \
-  icr.io/db2_community/db2:11.5.9.0
+Em uma instalação existente, ou para reaplicar a matriz após atualizar o código, execute
+`npm run seed:factory-permissions` com a mesma configuração DB2. Esse passo idempotente só insere
+códigos de permissão ausentes e associa as permissões autorizadas a ADMIN/SUPERVISOR/LIDER/MONITOR;
+não cria nem altera tabelas. Faça backup e revise as permissões da empresa antes de executá-lo.
+
+Após aplicar schema e seeds, provisione a primeira conta ADMIN usando valores injetados pelo
+gerenciador de segredos (não os escreva no histórico do terminal):
+
+```powershell
+$env:ADMIN_USERNAME = "<nome>"
+$env:ADMIN_DISPLAY_NAME = "<nome para exibição>"
+$env:ADMIN_INITIAL_PASSWORD = "<segredo de uso único, 14 a 72 bytes>"
+npm run bootstrap:admin
+Remove-Item Env:ADMIN_USERNAME, Env:ADMIN_DISPLAY_NAME, Env:ADMIN_INITIAL_PASSWORD
 ```
 
-Depois, `DATABASE_PROVIDER=db2` no `.env` e ajustar `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`.
-O driver `ibm_db` precisa das bibliotecas cliente do DB2 — em muitos ambientes ele baixa/compila
-sozinho no `npm install`; se falhar, ver a documentação do pacote `ibm_db` para o cliente
-`clidriver` da sua plataforma.
+O script grava apenas o hash bcrypt, associa a conta ao papel ADMIN e executa as inserções em
+transação. Não o execute novamente para uma conta existente. Guarde as credenciais iniciais no
+cofre da empresa e faça a entrega por canal seguro; altere a senha conforme a política local.
 
-## Produção
+## Inicialização e verificações
 
-Não incluído nesta fase (orquestração real — Kubernetes/IIS/systemd, TLS, secrets manager,
-backups automatizados de banco) porque depende do seu ambiente corporativo real. Posso detalhar
-isso quando você definir onde o HUB 8 vai rodar (nuvem própria, on-premise, etc.).
+```powershell
+npm start
+```
 
-## Rodando migrations
+- `GET /health` verifica se o processo HTTP está respondendo.
+- `GET /ready` verifica também a conexão com o banco; balanceadores devem usar esta rota.
+- `SIGINT` e `SIGTERM` param o servidor e fecham o pool do banco de forma graciosa.
 
-Os arquivos em `database/migrations/db2/*.sql` e `database/migrations/sqlserver/*.sql` são SQL
-puro, numerados e idempotentes por construção do schema (CREATE TABLE simples — para reexecução seria
-necessário adicionar `IF NOT EXISTS`/checagem de catálogo, hoje pensados para rodar uma vez em
-banco vazio). Rode com o cliente do seu banco (`db2 -tf arquivo.sql` / `sqlcmd -i arquivo.sql`) ou
-integre a um runner de migrations (ex.: `node-db-migrate`, `Flyway`) na Fase 6 seguinte.
+Mantenha a API atrás de um proxy/firewall corporativo, exponha apenas HTTPS ao cliente e permita
+conexões ao banco somente a partir dos hosts da aplicação. Configure monitoramento para respostas
+não-200 em `/ready`, logs de processo e espaço/saúde do banco. Não exponha detalhes de conexão ou
+credenciais em logs.
+
+## Desenvolvimento local
+
+O Compose SQL Server é somente para desenvolvimento. Copie `.env.example` para `.env` apenas em
+máquina local e nunca reutilize as senhas de exemplo na fábrica. O DB2 requer licença/imagem e
+cliente IBM configurados pela equipe responsável; consulte a documentação oficial do `ibm_db`.
+
+## Backup e recuperação
+
+Defina com o DBA a frequência, retenção, criptografia, cópia externa e teste periódico de restore
+antes da entrada em produção. Consulte [BACKUP.md](./BACKUP.md). Não considere um backup válido
+até que uma restauração em ambiente isolado tenha sido testada.

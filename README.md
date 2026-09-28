@@ -1,7 +1,6 @@
-# HUB 8.0 — Plataforma Industrial Modular
+# HUB 8.0 — Plataforma quadro do monitor
 
-Evolução do `HUB_7_v3-2.html` (single-file, localStorage/IndexedDB) para uma arquitetura
-profissional: **Frontend → API REST → Services → Repositories → Database Adapter → IBM DB2 / SQL Server**.
+
 
 O HUB 7 original foi preservado em `apps/legacy/HUB_7_v3-2.html` como referência funcional —
 nada foi apagado.
@@ -15,16 +14,19 @@ Este é o resultado da **Fase 2–4** (Arquitetura, Modelo de Dados, Backend/API
 - `npm test -- --runInBand` executa os testes unitários do backend JavaScript.
 - A API é iniciada diretamente com `node src/server.js`; não há etapa de compilação para `dist`.
 
-**Limites da validação:** os testes unitários usam mocks. A conexão e as migrations precisam ser
-validadas contra instâncias reais de DB2/SQL Server; instruções em `docs/DEPLOYMENT.md`.
+**Limites da validação:** os testes unitários usam mocks. A conexão, as migrations e a recuperação
+precisam ser validadas contra instâncias reais de DB2/SQL Server. O projeto ainda não está liberado
+para fábrica: os endpoints de backend foram implementados, mas ainda não foram integrados e
+validados com o frontend e o DB2 de homologação da fábrica. Consulte `docs/DEPLOYMENT.md` para os
+pré-requisitos.
 
 | Módulo | Status |
 |---|---|
 | Database Adapter (DB2 + SQL Server) | ✅ Implementado, não testado contra instância real |
-| Migrations (schema completo) | ✅ Implementado para DB2 e SQL Server |
+| Migrations (schema completo) | ✅ Implementado para DB2 e SQL Server; executar somente em banco vazio |
 | Auth (login/JWT/hash) + RBAC | ✅ Implementado |
 | Apps (CRUD completo — controller/service/repository/rotas) | ✅ Implementado (vertical slice de referência) |
-| Operators, Operations, Shifts, Dashboard, Audit | 🟡 Repository + rotas escritos, seguindo exatamente o mesmo padrão do módulo Apps — faltam nesta entrega apenas por volume, não por dificuldade (ver `docs/API.md` "Próximos passos") |
+| Operators, Operations, Shifts, Dashboard, User administration | ✅ CRUD/consulta implementados; precisam de integração e homologação |
 | Frontend novo (React ou similar) | ⛔ Não iniciado — ver Fase 7 |
 | `HUB.js` client (para os apps internos: VCP, LIP, 5S, etc.) | ✅ Implementado (`frontend/services/hub-client.js`) |
 | Migração dos dados do `fhw4` (localStorage) para DB2/SQL Server | ✅ Script JavaScript implementado (`database/seeds/migrate-legacy.js`) |
@@ -63,5 +65,5 @@ HUB8/
 6. Completar repositórios de Operators/Operations/Shifts/Audit no mesmo padrão de Apps.
 7. Reescrever o frontend do HUB (React recomendado) consumindo a API — o visual atual deve ser preservado.
 8. Adaptar os 8 apps internos para usar `HUB.js` em vez de acessar `localStorage` diretamente.
-9. Rodar migrations reais contra DB2 e SQL Server de teste, validar, então liberar produção.
-10. Testes de integração/E2E contra banco real.
+9. Integrar a interface atual aos endpoints e validar os fluxos operacionais com a fábrica.
+10. Rodar migrations e testes de integração/E2E na homologação DB2 escolhida; validar backup/restore e então liberar produção.

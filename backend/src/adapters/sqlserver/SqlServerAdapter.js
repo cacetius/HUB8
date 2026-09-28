@@ -1,5 +1,5 @@
 /**
- * SQL Server adapter backed by `mssql` and its Tedious driver.
+ * Acesso ao SQL Server pelo pacote `mssql`.
  */
 class SqlServerAdapter {
   constructor(config) {
@@ -35,30 +35,42 @@ class SqlServerAdapter {
     }
   }
 
-  toRequest(params) {
+  createRequest(params) {
     const request = this.pool.request();
     params.forEach((value, index) => request.input(`p${index}`, value));
     return request;
   }
 
-  toNamedSql(sql) {
+  addParameterNames(sql) {
     let index = 0;
+    // O repositório usa "?" nos dois bancos; o driver do SQL Server espera "@p0".
     return sql.replace(/\?/g, () => `@p${index++}`);
   }
 
   async query(sql, params = []) {
-    const request = this.toRequest(params);
-    const result = await request.query(this.toNamedSql(sql));
+    const request = this.createRequest(params);
+    const result = await request.query(this.addParameterNames(sql));
     return { rows: result.recordset, rowCount: result.recordset.length };
   }
 
   async execute(sql, params = []) {
-    const request = this.toRequest(params);
-    const result = await request.query(this.toNamedSql(sql));
+    const request = this.createRequest(params);
+    const result = await request.query(this.addParameterNames(sql));
     return {
       affectedRows: result.rowsAffected?.[0] ?? 0,
       insertId: result.recordset?.[0]?.ID,
     };
+  }
+
+  async insert(sql, params = []) {
+    const request = this.createRequest(params);
+    const statement = `${this.addParameterNames(sql)}; SELECT CAST(SCOPE_IDENTITY() AS INT) AS ID;`;
+    const result = await request.query(statement);
+    const insertId = Number(result.recordset?.[0]?.ID);
+    if (!Number.isSafeInteger(insertId) || insertId < 1) {
+      throw new Error('O SQL Server não retornou o ID do registro criado.');
+    }
+    return { affectedRows: result.rowsAffected?.[0] ?? 1, insertId };
   }
 
   async paginate(baseSql, params, page, pageSize, orderBy) {
@@ -92,14 +104,14 @@ class SqlServerAdapter {
 
     const transactionAdapter = {
       ...this,
-      query: async (query, params = []) => {
+      query: async (sqlText, params = []) => {
         const request = createRequest(params);
-        const result = await request.query(this.toNamedSql(query));
+        const result = await request.query(this.addParameterNames(sqlText));
         return { rows: result.recordset, rowCount: result.recordset.length };
       },
-      execute: async (query, params = []) => {
+      execute: async (sqlText, params = []) => {
         const request = createRequest(params);
-        const result = await request.query(this.toNamedSql(query));
+        const result = await request.query(this.addParameterNames(sqlText));
         return { affectedRows: result.rowsAffected?.[0] ?? 0 };
       },
     };
