@@ -13,9 +13,14 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-O padrão é `http://localhost:3000/api/v1`. A API deve estar executando, com
-banco configurado, usuário criado e a permissão `apps.view` atribuída. Entre
-com uma conta real da API; não há credenciais de demonstração.
+O padrão é `http://localhost:3000/api/v1`. Enquanto a entrega integrada não
+está concluída, a tela inicial abre automaticamente o HUB legado em modo
+temporário, sem formulário de login. O React autenticado continua disponível
+para sessões válidas previamente estabelecidas; a API permanece protegida.
+
+O build também publica o HUB legado e seus recursos ao lado do frontend para
+que a prévia temporária funcione em produção. Ela mantém os dados locais no
+navegador e não os envia para a API.
 
 ## Build e testes
 

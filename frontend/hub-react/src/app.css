@@ -72,48 +72,12 @@ button:focus-visible, input:focus-visible {
   overflow-y: auto;
 }
 
-.login-panel {
-  width: min(100%, 440px);
-  margin: clamp(32px, 8vh, 84px) auto;
-  padding: 30px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: linear-gradient(145deg, rgba(20, 37, 61, .98), rgba(14, 27, 46, .98));
-  box-shadow: 0 14px 36px rgba(0, 0, 0, .2);
-}
-
-.login-form {
-  display: grid;
-  gap: 9px;
-  margin-top: 25px;
-}
-
-.login-form label {
-  margin-top: 9px;
-  color: var(--t2);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.login-form input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border2);
-  border-radius: 9px;
-  background: rgba(4, 14, 27, .65);
-  color: var(--t1);
-}
-
-.login-form .mainbtn {
-  margin-top: 12px;
-}
-
-.mainbtn:disabled, .actbtn:disabled {
+.actbtn:disabled {
   cursor: wait;
   opacity: .65;
 }
 
-.api-address, .session-status {
+.session-status {
   margin-top: 17px;
   color: var(--t3);
   font-size: 11px;
@@ -310,14 +274,19 @@ button:focus-visible, input:focus-visible {
   background: #fff;
 }
 
+.legacy-preview {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  flex: 1;
+  border: 0;
+}
+
 @media (max-width: 700px) {
   .summary-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .login-panel {
-    padding: 24px 20px;
-  }
 }
 
 @media (max-width: 420px) {

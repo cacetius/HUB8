@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { apiRequest, fetchApps, getApiBaseUrl } from './api.js';
+import { apiRequest, fetchApps } from './api.js';
 import { CATEGORIES, categoryCounts, filterApps } from './catalog.js';
 import './app.css';
 import '../../../apps/legacy/hub-ui.css';
@@ -19,16 +19,12 @@ function App() {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState('');
   const [summaryError, setSummaryError] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginBusy, setLoginBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState('all');
   const [selectedApp, setSelectedApp] = useState(null);
   const [shift, setShift] = useState('1');
   const [clock, setClock] = useState(() => new Date());
   const searchRef = useRef(null);
-  const loginRef = useRef(null);
 
   const logout = useCallback(async (expired = false) => {
     const existingToken = localStorage.getItem(TOKEN_KEY);
@@ -92,30 +88,7 @@ function App() {
   );
   const counts = useMemo(() => categoryCounts(apps), [apps]);
   const visibleCategories = CATEGORIES.filter(({ id }) => counts.has(id));
-  const displayName = user?.displayName || user?.DISPLAY_NAME || user?.username || username;
-
-  const submitLogin = async (event) => {
-    event.preventDefault();
-    if (loginBusy) return;
-    setLoginBusy(true);
-    setError('');
-    try {
-      const result = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      if (!result?.token) throw new Error('A API não retornou um token de sessão.');
-      localStorage.setItem(TOKEN_KEY, result.token);
-      setPassword('');
-      setUser(result.user);
-      setToken(result.token);
-    } catch (cause) {
-      setError(cause.message || 'Não foi possível entrar.');
-      loginRef.current?.focus();
-    } finally {
-      setLoginBusy(false);
-    }
-  };
+  const displayName = user?.displayName || user?.DISPLAY_NAME || user?.username;
 
   const refresh = () => {
     if (token) loadAuthenticatedData(token);
@@ -139,6 +112,16 @@ function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [query, selectedApp, token]);
+
+  if (!token) {
+    return (
+      <iframe
+        className="legacy-preview"
+        title="HUB temporário"
+        src="./HUB_7_v3-2.html"
+      />
+    );
+  }
 
   const openApp = (app) => {
     if (!app.url) {
@@ -169,7 +152,7 @@ function App() {
           </div>
         </div>
         <div id="hdr-bot">
-          <div id="staff">{user ? <>👤 Conectado: <strong>{displayName}</strong></> : 'Acesso autenticado à central de aplicativos'}</div>
+          <div id="staff">👤 Conectado: <strong>{displayName}</strong></div>
           {user && (
             <>
               <div className="tsel" role="group" aria-label="Selecionar turno">
@@ -192,39 +175,7 @@ function App() {
       </header>
 
       <main id="scroll">
-        {!token ? (
-          <section className="login-panel" aria-labelledby="login-title">
-            <div className="hub-eyebrow">Acesso seguro</div>
-            <h1 className="hub-title" id="login-title">Entre no HUB</h1>
-            <p className="hub-description">Use suas credenciais cadastradas na plataforma.</p>
-            <form className="login-form" onSubmit={submitLogin}>
-              <label htmlFor="login-username">Usuário</label>
-              <input
-                id="login-username"
-                ref={loginRef}
-                autoComplete="username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                required
-              />
-              <label htmlFor="login-password">Senha</label>
-              <input
-                id="login-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-              <button className="mainbtn mbtn-b" type="submit" disabled={loginBusy}>
-                {loginBusy ? 'Autenticando…' : 'Entrar'}
-              </button>
-            </form>
-            {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
-            <div className="api-address">API: {getApiBaseUrl()}</div>
-          </section>
-        ) : (
-          <>
+        <>
             <section className="hub-welcome" aria-label="Resumo dos aplicativos">
               <div>
                 <div className="hub-eyebrow">Central de trabalho</div>
@@ -341,14 +292,13 @@ function App() {
               <span className="session-status">Sessão protegida pela API</span>
             </div>
           </>
-        )}
       </main>
 
-      {token && <nav id="bot-nav" aria-label="Navegação principal">
+      <nav id="bot-nav" aria-label="Navegação principal">
         <button type="button" className="nbtn active" aria-current="page">
           <span className="ni" aria-hidden="true">⌂</span><span className="nl">Aplicativos</span>
         </button>
-      </nav>}
+      </nav>
 
       {selectedApp && (
         <div className="viewer" role="dialog" aria-modal="true" aria-label={`Aplicativo: ${selectedApp.name}`}>
