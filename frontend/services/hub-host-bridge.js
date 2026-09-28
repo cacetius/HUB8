@@ -1,6 +1,8 @@
 /**
  * Recebe no HUB as solicitações enviadas pelos aplicativos internos.
- * Só processa mensagens vindas de origens autorizadas.
+ * Só processa mensagens vindas de origens autorizadas. O armazenamento legado
+ * não passa por esta ponte: HUB.storage precisa permanecer síncrono e usa o
+ * localStorage do próprio iframe, preservando os mesmos dados e chaves.
  */
 export function createHubBridge({ allowedOrigins, getApiToken, apiBaseUrl }) {
   async function fetchFromApi(path) {
@@ -29,12 +31,18 @@ export function createHubBridge({ allowedOrigins, getApiToken, apiBaseUrl }) {
   }
 
   window.addEventListener('message', async (event) => {
-    if (!allowedOrigins.includes(event.origin)) return;
+    if (!event.source || !allowedOrigins.includes(event.origin)) return;
     const message = event.data;
-    if (!message || message.source !== 'hub-app' || !message.type || !message.requestId) return;
+    if (
+      !message ||
+      message.source !== 'hub-app' ||
+      typeof message.type !== 'string' ||
+      typeof message.requestId !== 'string'
+    ) {
+      return;
+    }
 
-    const handleRequest = handlers[message.type];
-    if (!handleRequest) {
+    if (!Object.prototype.hasOwnProperty.call(handlers, message.type)) {
       return respond(
         event.source,
         event.origin,
@@ -45,6 +53,7 @@ export function createHubBridge({ allowedOrigins, getApiToken, apiBaseUrl }) {
     }
 
     try {
+      const handleRequest = handlers[message.type];
       const payload = await handleRequest(message.payload);
       respond(event.source, event.origin, message.requestId, payload, null);
     } catch {

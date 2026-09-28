@@ -81,6 +81,15 @@ permissões. Em bancos existentes, aplique a atualização descrita em `docs/DEP
 |---|---|---|
 | GET | `/dashboard/summary` | Totais de apps/operadores/operações/turnos |
 
+## Audit (somente leitura)
+Todas as rotas exigem `audit.view`. Os registros são imutáveis pela API.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/audit?page=&pageSize=&userId=&action=&entity=&entityId=&from=&to=` | Lista filtrada por usuário, ação, entidade e intervalo ISO |
+| GET | `/audit/entity/:entity/:entityId?page=&pageSize=` | Histórico de uma entidade |
+| GET | `/audit/:id` | Consulta um registro |
+
 ## Paginação
 Todo endpoint paginado aceita `page` (padrão 1) e `pageSize` (padrão 20, **máximo 100** — trava
 propositalmente para nunca carregar milhares de registros de uma vez, item 28 do escopo).

@@ -26,8 +26,8 @@ pré-requisitos.
 | Migrations (schema completo) | ✅ Implementado para DB2 e SQL Server; executar somente em banco vazio |
 | Auth (login/JWT/hash) + RBAC | ✅ Implementado |
 | Apps (CRUD completo — controller/service/repository/rotas) | ✅ Implementado (vertical slice de referência) |
-| Operators, Operations, Shifts, Dashboard, User administration | ✅ CRUD/consulta implementados; precisam de integração e homologação |
-| Frontend novo (React ou similar) | ⛔ Não iniciado — ver Fase 7 |
+| Operators, Operations, Shifts, Dashboard, User administration, Audit | ✅ API CRUD/consulta implementada; integração e homologação pendentes |
+| Frontend novo (React ou similar) | 🟡 Início da migração precisa preservar visual e ser validado |
 | `HUB.js` client (para os apps internos: VCP, LIP, 5S, etc.) | ✅ Implementado (`frontend/services/hub-client.js`) |
 | Migração dos dados do `fhw4` (localStorage) para DB2/SQL Server | ✅ Script JavaScript implementado (`database/seeds/migrate-legacy.js`) |
 | Testes | 🟡 Exemplos unitários com mocks incluídos; testes de integração/E2E dependem de banco real |
@@ -62,7 +62,7 @@ HUB8/
 
 ## Próximas fases (na ordem do plano original)
 
-6. Completar repositórios de Operators/Operations/Shifts/Audit no mesmo padrão de Apps.
+6. Integrar e homologar repositórios/API de Operators/Operations/Shifts/Audit no DB2.
 7. Reescrever o frontend do HUB (React recomendado) consumindo a API — o visual atual deve ser preservado.
 8. Adaptar os 8 apps internos para usar `HUB.js` em vez de acessar `localStorage` diretamente.
 9. Integrar a interface atual aos endpoints e validar os fluxos operacionais com a fábrica.

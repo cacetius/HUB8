@@ -1,14 +1,47 @@
-# APP_INTEGRATION.md
+# Integração de aplicativos internos com o HUB.js
 
-Como migrar um app interno (VCP, LIP, 5S, VTP, Versatilidade, Rotativa, Smart Flow, Monitor KPI)
-para parar de ler `localStorage` do HUB diretamente e passar a usar `HUB.js`.
+O `frontend/services/hub-client.js` disponibiliza a API `HUB` para aplicativos
+internos. Ela oferece chamadas assíncronas ao HUB e a fachada síncrona de
+armazenamento local `HUB.storage`.
 
-## 1. Estrutura de pastas
+## Armazenamento legado
 
-Cada app vira uma pasta própria em `/apps/<nome-do-app>/`, com seu próprio HTML/JS/CSS. O HUB
-continua abrindo o app num `<iframe src="/apps/vcp/index.html">`.
+`HUB.storage` implementa a interface Web Storage (`getItem`, `setItem`,
+`removeItem`, `clear`, `key` e `length`) sobre o `localStorage` do próprio
+iframe. As operações são síncronas e mantêm os mesmos nomes de chave e os
+mesmos valores já existentes no navegador. Não há cópia remota, importação,
+limpeza automática nem alteração de esquema de banco de dados.
 
-## 2. No app: incluir o client
+Use a fachada para ler e gravar dados persistidos pelo aplicativo:
+
+```js
+const state = JSON.parse(HUB.storage.getItem('app_state') || '{}');
+HUB.storage.setItem('app_state', JSON.stringify(state));
+```
+
+Chaves calculadas continuam sendo aceitas sem transformação:
+
+```js
+const key = `vw_q_${date}`;
+const value = HUB.storage.getItem(key);
+```
+
+O host legado `apps/legacy/HUB_7_v3-2.html` carrega o cliente compartilhado e
+injeta seu bootstrap antes do código dos dez aplicativos embutidos e dos
+aplicativos HTML enviados pelo usuário. Os nove aplicativos do catálogo e o
+Cartão Monitor mantêm suas chaves atuais. Versatilidade continua usando
+IndexedDB; sua persistência não é redirecionada.
+
+O armazenamento não é enviado por `postMessage`: essa ponte é assíncrona e não
+pode preservar o contrato síncrono esperado pelos aplicativos. O cliente
+delegará as operações à área `localStorage` já usada por cada iframe.
+
+O host legado injeta o cliente para oferecer `HUB.storage`, mas não ativa as
+chamadas remotas da ponte sem a configuração de autenticação e origens
+autorizadas do ambiente. `HUB.getOperators()` e métodos semelhantes exigem que
+o host configure `createHubBridge` conforme a seção abaixo.
+
+## Chamadas assíncronas ao HUB
 
 ```html
 <script src="/services/hub-client.js"></script>
@@ -23,36 +56,40 @@ continua abrindo o app num `<iframe src="/apps/vcp/index.html">`.
 </script>
 ```
 
-## 3. No HUB: incluir a ponte
+No host, configure a ponte apenas com origens explicitamente autorizadas:
 
 ```js
 import { createHubBridge } from './services/hub-host-bridge.js';
 
 createHubBridge({
-  allowedOrigins: ['https://apps.seudominio.local'], // NUNCA usar '*' em produção
+  allowedOrigins: ['https://apps.seudominio.local'],
   getApiToken: () => sessionStorage.getItem('hub_token'),
   apiBaseUrl: '/api/v1',
 });
 ```
 
-## 4. Protocolo de mensagens
+A ponte processa somente mensagens `hub-app` dessas origens e responde à janela
+que enviou cada solicitação. Não use `'*'` em `allowedOrigins`.
 
-Requisição (app → HUB):
+## Protocolo de mensagens
+
 ```json
-{ "source": "hub-app", "type": "GET_OPERATORS", "version": "1.0", "requestId": "req_1_...", "payload": null }
+{
+  "source": "hub-app",
+  "type": "GET_OPERATORS",
+  "version": "1.0",
+  "requestId": "req_1_...",
+  "payload": null
+}
 ```
 
-Resposta (HUB → app):
+Resposta:
+
 ```json
-{ "source": "hub-response", "requestId": "req_1_...", "payload": [...], "error": null }
+{
+  "source": "hub-response",
+  "requestId": "req_1_...",
+  "payload": [],
+  "error": null
+}
 ```
-
-Mensagens que não seguem exatamente esse formato, ou vêm de uma origem fora de `allowedOrigins`,
-são descartadas silenciosamente — nunca processadas (item 18 do escopo: "não aceitar mensagens arbitrárias").
-
-## 5. Migração incremental
-
-Não é preciso migrar os 8 apps de uma vez. Cada app pode continuar como está até ser adaptado —
-o HUB 8 não quebra apps antigos que ainda leem `localStorage` local deles mesmos (dados que são
-do próprio app, não do HUB). O que muda é apenas a fonte dos dados que **vêm do HUB**
-(operadores, operações, turno, usuário logado).
