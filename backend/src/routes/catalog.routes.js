@@ -45,6 +45,7 @@ const operationRoutes = createCatalogRoutes('operations', {
   delete: 'operations.delete',
 });
 const shiftRoutes = createCatalogRoutes('shifts', {
+  view: 'shifts.manage',
   create: 'shifts.manage',
   edit: 'shifts.manage',
   delete: 'shifts.manage',

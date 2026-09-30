@@ -8,7 +8,7 @@ const db = getDatabaseAdapter();
 const dashboardRoutes = Router();
 
 dashboardRoutes.use(requireAuth);
-dashboardRoutes.get('/summary', async (_req, res, next) => {
+dashboardRoutes.get('/summary', requirePermission('reports.view'), async (_req, res, next) => {
   try {
     const [apps, operators, operations, shifts] = await Promise.all([
       db.query(

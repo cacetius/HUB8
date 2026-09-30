@@ -84,4 +84,51 @@ describe('API de fábrica', () => {
       expect.any(Array)
     );
   });
+
+  it('exige permissões específicas para consultar o dashboard e os turnos', async () => {
+    Object.assign(mockDatabase, {
+      query: jest.fn(async (sql) => {
+        if (sql.includes('SELECT ID, USERNAME, DISPLAY_NAME FROM USERS')) {
+          return { rows: [{ ID: 7, USERNAME: 'admin', DISPLAY_NAME: 'Admin' }] };
+        }
+        if (sql.includes('SELECT R.CODE FROM ROLES')) return { rows: [{ CODE: 'OPERADOR' }] };
+        if (sql.includes('SELECT DISTINCT P.CODE')) return { rows: [] };
+        throw new Error(`Consulta inesperada no teste: ${sql}`);
+      }),
+    });
+    server = createApp().listen(0);
+    await new Promise((resolve) => server.once('listening', resolve));
+
+    const login = await new AuthService(
+      {
+        findByUsername: jest.fn().mockResolvedValue({
+          ID: 7,
+          USERNAME: 'operator',
+          DISPLAY_NAME: 'Operator',
+          PASSWORD_HASH: 'test-hash',
+        }),
+        getRolesAndPermissions: jest.fn().mockResolvedValue({
+          roles: ['OPERADOR'],
+          permissions: [],
+        }),
+      },
+      { record: jest.fn() }
+    ).login('operator', 'test-password');
+    const headers = { authorization: `Bearer ${login.token}` };
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+    const dashboard = await fetch(`${baseUrl}/api/v1/dashboard/summary`, { headers });
+    const shifts = await fetch(`${baseUrl}/api/v1/shifts/current`, { headers });
+
+    expect(dashboard.status).toBe(403);
+    expect(shifts.status).toBe(403);
+    await expect(dashboard.json()).resolves.toMatchObject({
+      success: false,
+      code: 'FORBIDDEN',
+    });
+    await expect(shifts.json()).resolves.toMatchObject({
+      success: false,
+      code: 'FORBIDDEN',
+    });
+  });
 });
