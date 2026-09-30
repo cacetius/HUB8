@@ -2,10 +2,8 @@
 
 
 
-O HUB 7 original foi preservado em `apps/legacy/HUB_7_v3-2.html` como referência funcional —
-nada foi apagado.
-
-## Status real desta entrega (seja honesto ao ler isto)
+O HUB 7 original foi preservado em `apps/legacy/HUB_7_v3-2.html` como referência funcional
+## Status  
 
 Este é o resultado da **Fase 2–4** (Arquitetura, Modelo de Dados, Backend/API).
 
@@ -20,6 +18,7 @@ para fábrica: os endpoints de backend foram implementados, mas ainda não foram
 validados com o frontend e o DB2 de homologação da fábrica. Consulte `docs/DEPLOYMENT.md` para os
 pré-requisitos.
 
+
 | Módulo | Status |
 |---|---|
 | Database Adapter (DB2 + SQL Server) | ✅ Implementado, não testado contra instância real |
@@ -33,9 +32,9 @@ pré-requisitos.
 | Testes | 🟡 Exemplos unitários com mocks incluídos; testes de integração/E2E dependem de banco real |
 | Docker Compose | ✅ SQL Server (imagem pública oficial) para dev; DB2 documentado separadamente (imagem `ibmcom/db2` exige aceite de licença — ver `docs/DEPLOYMENT.md`) |
 
-## Stack escolhida (e por quê)
+## Stack escolhida
 
-**Node.js 20 + JavaScript + Express**, drivers oficiais/mantidos:
+**Node.js 0 + JavaScript + Express**, drivers oficiais/mantidos:
 - `ibm_db` para DB2 (binding oficial do IBM Data Server Driver)
 - `mssql` (tedious) para SQL Server
 
@@ -44,7 +43,6 @@ e o ecossistema (jest, express, zod) cobre validação/testes sem reinventar nad
 alternativa mais "nativa" para DB2/SQL Server em ambiente corporativo Windows — se sua equipe já é
 .NET, me avise que eu porto a mesma arquitetura.
 
-## Estrutura
 
 ```
 HUB8/
@@ -60,8 +58,7 @@ HUB8/
 └── .env.example
 ```
 
-## Próximas fases (na ordem do plano original)
-
+## Próximas fases 
 6. Integrar e homologar repositórios/API de Operators/Operations/Shifts/Audit no DB2.
 7. Reescrever o frontend do HUB (React recomendado) consumindo a API — o visual atual deve ser preservado.
 8. Adaptar os 8 apps internos para usar `HUB.js` em vez de acessar `localStorage` diretamente.
