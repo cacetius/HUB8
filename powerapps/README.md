@@ -10,7 +10,28 @@
 - SharePoint/OneDrive corporativo foi escolhido como armazenamento central para os arquivos e backups; a biblioteca e o site ainda precisam ser provisionados pela TI.
 - Apps HTML enviados serão abertos fora do Canvas, em uma origem HTTPS aprovada, porque o Canvas não executa HTML arbitrário e SharePoint não é um host confiável de execução para esses módulos.
 
-O contrato inicial do conector está em [hub-api.swagger.yaml](./hub-api.swagger.yaml). Ele contém as operações de Apps, Operators, Operations, Shifts, Dashboard, Audit e Users. O login próprio (`POST /auth/login`) não faz parte do conector OAuth: a autenticação do Canvas App deve ocorrer pelo Microsoft Entra ID. As respostas mantêm o envelope `{ success, data, message }` e os erros existentes.
+O contrato-fonte do conector está em [hub-api.swagger.yaml](./hub-api.swagger.yaml). Ele contém as operações de Apps, Operators, Operations, Shifts, Dashboard, Audit, Users e arquivos/backups. O login próprio (`POST /auth/login`) não faz parte do conector OAuth: a autenticação do Canvas App deve ocorrer pelo Microsoft Entra ID. As respostas mantêm o envelope `{ success, data, message }` e os erros existentes.
+
+### Preparar o Swagger para importação
+
+Não importe o contrato-fonte diretamente: ele usa host e IDs de exemplo. Depois de receber da TI o endereço HTTPS da API e os GUIDs de tenant e aplicativo da API, gere uma cópia pronta para importação:
+
+```powershell
+$env:HUB_API_BASE_URL = "https://api.sua-empresa.com"
+$env:ENTRA_TENANT_ID = "00000000-0000-0000-0000-000000000000"
+$env:ENTRA_API_CLIENT_ID = "00000000-0000-0000-0000-000000000000"
+node .\powerapps\scripts\prepare-connector.mjs
+```
+
+O comando gera `powerapps/hub-api.generated.swagger.yaml`; não altera o contrato-fonte e recusa HTTP, caminhos extras e IDs inválidos. A cópia gerada está ignorada pelo Git por conter configuração específica do ambiente. O segredo do cliente do conector não é necessário para gerar o Swagger e nunca deve ser colocado nesses arquivos.
+
+Valide a ferramenta localmente com:
+
+```powershell
+node --test .\powerapps\scripts\prepare-connector.test.mjs
+```
+
+Depois, importe o Swagger gerado em **Power Apps > Custom connectors**, configure OAuth 2.0 com o aplicativo cliente do conector e use o redirect URI exibido pelo próprio assistente. A criação do `.msapp`, as conexões do Canvas e o teste da autenticação só podem ser feitos no ambiente Power Platform da empresa.
 
 ## Valores do aplicativo registrado no Entra
 
@@ -45,7 +66,7 @@ A hospedagem da API e a origem HTTPS isolada para executar os módulos HTML aind
 - Provisionar uma biblioteca SharePoint restrita à aplicação e escolher como a API obtém autorização Graph com privilégio mínimo (`Sites.Selected` quando aprovado). Segredos/certificados devem vir de cofre corporativo; nenhum segredo fica no app.
 - A biblioteca guarda os originais e os backups; os arquivos HTML só são servidos/executados por um host HTTPS separado, isolado da origem da API, com política CSP restritiva. Não publique HTML enviado por usuário diretamente na origem autenticada do HUB.
 
-Licenças, gateway, tenant, região do ambiente, domínio HTTPS e políticas DLP devem ser confirmados pelo administrador Power Platform da empresa antes da publicação. Nenhuma conexão real, conector importado ou `.msapp` foi criado neste repositório. O Swagger inclui as operações existentes e os endpoints aditivos de arquivos/backup; nenhum endpoint existente foi substituído.
+Licenças, gateway, tenant, região do ambiente, domínio HTTPS e políticas DLP devem ser confirmados pelo administrador Power Platform da empresa antes da publicação. Ainda não há conexão real, conector importado ou `.msapp` neste repositório. O Swagger inclui as operações existentes e os endpoints aditivos de arquivos/backup; nenhum endpoint existente foi substituído. O gerador torna o contrato específico para o ambiente, mas não substitui a importação e os testes no tenant.
 
 ## Preservação de aparência e comportamento
 
@@ -57,12 +78,13 @@ Para conceder acesso ao Microsoft Graph, a TI deve registrar um aplicativo com p
 
 Não apontar o Canvas App para produção até completar:
 
-1. Registro/configuração do Entra ID e associação de UPN com usuários previamente cadastrados.
-2. Escolha da hospedagem HTTPS da API e do host isolado para execução dos apps HTML; configuração do gateway se a API for privada.
-3. Provisionamento do site, drive e pastas SharePoint; consentimento/permissão Graph e teste de upload/download usando conta de aplicação.
-4. Importação e teste dos endpoints aditivos de arquivos e backup, mantendo as operações atuais compatíveis.
-5. Testes de contrato HTTP, RBAC e cenários por função contra a versão Java.
-6. Homologação em SQL Server real, incluindo falhas, transações, backup e restore.
-7. Construção do Canvas App no tenant, comparação visual e aprovação funcional da fábrica.
+1. Informar o endereço HTTPS acessível da API e os GUIDs do tenant e do aplicativo API; gerar e importar o Swagger específico do ambiente.
+2. Configurar os dois registros Entra (API e cliente do conector), consentimento, callback e associação do UPN com usuários previamente cadastrados.
+3. Escolha da hospedagem HTTPS da API e do host isolado para execução dos apps HTML; configuração do gateway se a API for privada.
+4. Provisionamento do site, drive e pastas SharePoint; consentimento/permissão Graph e teste de upload/download usando conta de aplicação.
+5. Importação e teste dos endpoints aditivos de arquivos e backup, mantendo as operações atuais compatíveis.
+6. Testes de contrato HTTP, RBAC e cenários por função contra a versão Java.
+7. Homologação em SQL Server real, incluindo falhas, transações, backup e restore.
+8. Construção do Canvas App no tenant, comparação visual e aprovação funcional da fábrica.
 
 O caminho Power Apps usa SQL Server; o suporte DB2 existente no backend Node antigo fica fora da migração e só deve ser removido após o serviço anterior ser aposentado.

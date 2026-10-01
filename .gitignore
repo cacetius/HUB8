@@ -3,3 +3,4 @@ dist/
 .env
 *.log
 legacy-export.json
+powerapps/hub-api.generated.swagger.yaml
