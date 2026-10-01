@@ -24,15 +24,23 @@ public class HubSettings {
     private final String tlsKeyStorePassword;
     private final String tlsKeyStoreType;
     private final String tlsKeyAlias;
+    private final String entraIssuer;
+    private final String entraAudience;
+    private final String sharePointTenantId;
+    private final String sharePointClientId;
+    private final String sharePointClientSecret;
+    private final String sharePointDriveId;
+    private final String sharePointHtmlFolder;
+    private final String sharePointBackupFolder;
 
     public HubSettings() {
         appEnv = env("APP_ENV", "development");
         databaseProvider = env("DATABASE_PROVIDER", "sqlserver");
         port = integer("PORT", 3000);
         dbHost = env("DB_HOST", "localhost");
-        dbPort = integer("DB_PORT", databaseProvider.equals("db2") ? 50000 : 1433);
-        dbName = env("DB_NAME", databaseProvider.equals("db2") ? "HUB8" : "hub8");
-        dbUser = env("DB_USER", databaseProvider.equals("db2") ? "db2inst1" : "sa");
+        dbPort = integer("DB_PORT", 1433);
+        dbName = env("DB_NAME", "hub8");
+        dbUser = env("DB_USER", "sa");
         dbPassword = env("DB_PASSWORD", "changeme");
         jwtSecret = env("JWT_SECRET", "dev-only-change-me");
         jwtExpiresIn = env("JWT_EXPIRES_IN", "8h");
@@ -42,6 +50,14 @@ public class HubSettings {
         tlsKeyStorePassword = env("SERVER_SSL_KEY_STORE_PASSWORD", "");
         tlsKeyStoreType = env("SERVER_SSL_KEY_STORE_TYPE", "PKCS12");
         tlsKeyAlias = env("SERVER_SSL_KEY_ALIAS", "");
+        entraIssuer = env("ENTRA_ISSUER", "");
+        entraAudience = env("ENTRA_AUDIENCE", "");
+        sharePointTenantId = env("SHAREPOINT_TENANT_ID", "");
+        sharePointClientId = env("SHAREPOINT_CLIENT_ID", "");
+        sharePointClientSecret = env("SHAREPOINT_CLIENT_SECRET", "");
+        sharePointDriveId = env("SHAREPOINT_DRIVE_ID", "");
+        sharePointHtmlFolder = env("SHAREPOINT_HTML_FOLDER", "HUB8/html");
+        sharePointBackupFolder = env("SHAREPOINT_BACKUP_FOLDER", "HUB8/backups");
         validate();
     }
 
@@ -60,10 +76,12 @@ public class HubSettings {
     private void validate() {
         if (!List.of("development", "test", "production").contains(appEnv))
             throw new IllegalStateException("APP_ENV deve ser development, test ou production.");
-        if (!List.of("db2", "sqlserver").contains(databaseProvider))
-            throw new IllegalStateException("DATABASE_PROVIDER deve ser db2 ou sqlserver.");
+        if (!"sqlserver".equals(databaseProvider))
+            throw new IllegalStateException("DATABASE_PROVIDER deve ser sqlserver.");
         if (port < 1 || port > 65535) throw new IllegalStateException("PORT deve estar entre 1 e 65535.");
         if (dbPort < 1 || dbPort > 65535) throw new IllegalStateException("DB_PORT deve estar entre 1 e 65535.");
+        validateEntraSettings();
+        validateSharePointSettings();
         for (String origin : allowedAppOrigins) {
             try {
                 URI uri = URI.create(origin);
@@ -97,6 +115,38 @@ public class HubSettings {
                 throw new IllegalStateException("Configure SERVER_SSL_KEY_STORE e SERVER_SSL_KEY_STORE_PASSWORD para HTTPS em produção.");
         }
         parseExpiry(jwtExpiresIn);
+    }
+
+    private void validateEntraSettings() {
+        if (entraIssuer.isBlank() && entraAudience.isBlank()) return;
+        if (entraIssuer.isBlank() || entraAudience.isBlank())
+            throw new IllegalStateException("Configure ENTRA_ISSUER e ENTRA_AUDIENCE juntos.");
+        try {
+            URI issuer = URI.create(entraIssuer);
+            if (!"https".equals(issuer.getScheme()) || !"login.microsoftonline.com".equalsIgnoreCase(issuer.getHost())
+                    || issuer.getRawPath() == null || !issuer.getRawPath().matches("^/[^/]+/v2\\.0$")
+                    || issuer.getRawQuery() != null || issuer.getFragment() != null)
+                throw new IllegalArgumentException();
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("ENTRA_ISSUER deve ser https://login.microsoftonline.com/{tenant-id}/v2.0.");
+        }
+    }
+
+    private void validateSharePointSettings() {
+        boolean configured = List.of(sharePointTenantId, sharePointClientId, sharePointClientSecret, sharePointDriveId)
+                .stream().anyMatch(StringUtils::hasText);
+        if (!configured) return;
+        if (List.of(sharePointTenantId, sharePointClientId, sharePointClientSecret, sharePointDriveId)
+                .stream().anyMatch(value -> !StringUtils.hasText(value)))
+            throw new IllegalStateException("Configure todas as variáveis SHAREPOINT_* de tenant, app, segredo e drive.");
+        if (!safeSharePointFolder(sharePointHtmlFolder) || !safeSharePointFolder(sharePointBackupFolder))
+            throw new IllegalStateException("As pastas SharePoint devem ser caminhos relativos sem segmentos '..'.");
+    }
+
+    private static boolean safeSharePointFolder(String folder) {
+        return StringUtils.hasText(folder) && !folder.startsWith("/") && !folder.endsWith("/")
+                && java.util.Arrays.stream(folder.split("/")).noneMatch(segment ->
+                segment.isBlank() || segment.equals(".") || segment.equals(".."));
     }
 
     public static Duration parseExpiry(String value) {
@@ -133,5 +183,17 @@ public class HubSettings {
     public String getTlsKeyStorePassword() { return tlsKeyStorePassword; }
     public String getTlsKeyStoreType() { return tlsKeyStoreType; }
     public String getTlsKeyAlias() { return tlsKeyAlias; }
+    public String getEntraIssuer() { return entraIssuer; }
+    public String getEntraAudience() { return entraAudience; }
+    public String getSharePointTenantId() { return sharePointTenantId; }
+    public String getSharePointClientId() { return sharePointClientId; }
+    public String getSharePointClientSecret() { return sharePointClientSecret; }
+    public String getSharePointDriveId() { return sharePointDriveId; }
+    public String getSharePointHtmlFolder() { return sharePointHtmlFolder; }
+    public String getSharePointBackupFolder() { return sharePointBackupFolder; }
+    public boolean isSharePointConfigured() {
+        return List.of(sharePointTenantId, sharePointClientId, sharePointClientSecret, sharePointDriveId)
+                .stream().allMatch(StringUtils::hasText);
+    }
     public boolean isProduction() { return "production".equals(appEnv); }
 }

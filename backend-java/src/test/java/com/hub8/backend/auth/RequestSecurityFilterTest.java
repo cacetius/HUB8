@@ -5,11 +5,15 @@ import com.hub8.backend.config.HubSettings;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -89,6 +93,57 @@ class RequestSecurityFilterTest {
     }
 
     @Test
+    void entraTokenMapsItsUpnToAnActiveHubUser() throws Exception {
+        JwtTokens tokens = mock(JwtTokens.class);
+        when(tokens.verify("entra-token")).thenThrow(com.hub8.backend.api.ApiException.expired("invalid"));
+        StubJdbcTemplate jdbc = new StubJdbcTemplate(List.of());
+        RequestSecurityFilter filter = new RequestSecurityFilter(jdbc, tokens,
+                new HubSettings(), new ObjectMapper());
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        when(decoder.decode("entra-token")).thenReturn(Jwt.withTokenValue("entra-token")
+                .header("alg", "RS256")
+                .claim("preferred_username", "operator@factory.example")
+                .build());
+        filter.setEntraJwtDecoder(decoder);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
+        request.addHeader("Authorization", "Bearer entra-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(200, response.getStatus());
+        assertTrue(chain.getRequest() != null);
+        assertEquals(2L, ((HubPrincipal) request.getAttribute("hubPrincipal")).id());
+        assertEquals("operator@factory.example", jdbc.lastUsernameLookup);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/files/html",
+        "/api/v1/files/html/item-id",
+        "/api/v1/files/legacy-backups",
+        "/api/v1/files/legacy-backups/item-id"
+    })
+    void sharePointFilesRequireTheirHubPermissions(String path) throws Exception {
+        JwtTokens tokens = mock(JwtTokens.class);
+        when(tokens.verify("valid-token")).thenReturn(Map.of("id", 2));
+        RequestSecurityFilter filter = new RequestSecurityFilter(new StubJdbcTemplate(List.of()), tokens,
+                new HubSettings(), new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+        request.addHeader("Authorization", "Bearer valid-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("\"code\":\"FORBIDDEN\""));
+        assertTrue(chain.getRequest() == null);
+    }
+
+    @Test
     void chunkedLoginBodiesAreCappedAtTwoMegabytes() throws Exception {
         RequestSecurityFilter filter = new RequestSecurityFilter(new StubJdbcTemplate(List.of()),
                 mock(JwtTokens.class), new HubSettings(), new ObjectMapper());
@@ -107,10 +162,15 @@ class RequestSecurityFilterTest {
 
     private static class StubJdbcTemplate extends JdbcTemplate {
         private final List<String> currentPermissions;
+        private String lastUsernameLookup;
         StubJdbcTemplate(List<String> currentPermissions) { this.currentPermissions = currentPermissions; }
 
         @Override
         public List<Map<String, Object>> queryForList(String sql, Object... args) {
+            if (sql.contains("WHERE USERNAME = ? AND ACTIVE = 1")) {
+                lastUsernameLookup = (String) args[0];
+                return List.of(Map.of("ID", 2L));
+            }
             return List.of(Map.of("ID", 2L, "USERNAME", "operator", "DISPLAY_NAME", "Operator"));
         }
 

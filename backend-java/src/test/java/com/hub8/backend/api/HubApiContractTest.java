@@ -3,6 +3,7 @@ package com.hub8.backend.api;
 import com.hub8.backend.service.HubService;
 import com.hub8.backend.auth.JwtTokens;
 import com.hub8.backend.config.HubSettings;
+import com.hub8.backend.persistence.SharePointFileStore;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,7 @@ class HubApiContractTest {
     @MockBean JdbcTemplate jdbc;
     @MockBean JwtTokens tokens;
     @MockBean HubSettings settings;
+    @MockBean SharePointFileStore files;
 
     @Test
     void healthUsesLegacyHealthShape() throws Exception {
@@ -70,6 +72,24 @@ class HubApiContractTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("O corpo da requisição deve ser um objeto."))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void htmlUploadRejectsPathsAndNonHtmlBodiesBeforeCallingStorage() throws Exception {
+        mvc.perform(post("/api/v1/files/html").contentType("application/json")
+                        .content("{\"fileName\":\"../module.html\",\"content\":\"<html></html>\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        org.mockito.Mockito.verifyNoInteractions(files);
+    }
+
+    @Test
+    void legacyBackupRequiresItsExpectedShapeBeforeCallingStorage() throws Exception {
+        mvc.perform(post("/api/v1/files/legacy-backups").contentType("application/json")
+                        .content("{\"data\":{\"config\":{},\"apps\":\"not-an-array\"}}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        org.mockito.Mockito.verifyNoInteractions(files);
     }
 
     @Test

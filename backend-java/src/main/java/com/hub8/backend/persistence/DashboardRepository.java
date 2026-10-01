@@ -1,25 +1,20 @@
 package com.hub8.backend.persistence;
 
 import java.util.Map;
-import com.hub8.backend.config.HubSettings;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class DashboardRepository {
     private final JdbcTemplate jdbc;
-    private final HubSettings settings;
 
-    public DashboardRepository(JdbcTemplate jdbc, HubSettings settings) {
+    public DashboardRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.settings = settings;
     }
 
     public boolean isReady() {
         try {
-            String sql = settings.getDatabaseProvider().equals("db2")
-                    ? "SELECT 1 AS OK FROM SYSIBM.SYSDUMMY1" : "SELECT 1 AS OK";
-            jdbc.queryForObject(sql, Integer.class);
+            jdbc.queryForObject("SELECT 1 AS OK", Integer.class);
             return true;
         } catch (Exception ex) {
             return false;

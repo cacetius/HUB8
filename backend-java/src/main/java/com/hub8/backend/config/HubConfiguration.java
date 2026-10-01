@@ -3,11 +3,20 @@ package com.hub8.backend.config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.Ssl;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -18,24 +27,13 @@ public class HubConfiguration {
 
     @Bean
     DataSource dataSource(HubSettings settings) {
-        String url;
-        String driver;
-        if (settings.getDatabaseProvider().equals("sqlserver")) {
-            url = "jdbc:sqlserver://" + settings.getDbHost() + ":" + settings.getDbPort()
-                    + ";databaseName=" + settings.getDbName() + ";encrypt=true;trustServerCertificate="
-                    + (!settings.isProduction());
-            driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-        } else if (settings.getDatabaseProvider().equals("db2")) {
-            url = "jdbc:db2://" + settings.getDbHost() + ":" + settings.getDbPort() + "/" + settings.getDbName();
-            driver = "com.ibm.db2.jcc.DB2Driver";
-        } else {
-            throw new IllegalStateException("DATABASE_PROVIDER inválido: " + settings.getDatabaseProvider());
-        }
+        String driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+        String url = "jdbc:sqlserver://" + settings.getDbHost() + ":" + settings.getDbPort()
+                + ";databaseName=" + settings.getDbName() + ";encrypt=true;trustServerCertificate="
+                + (!settings.isProduction());
         try { Class.forName(driver); }
         catch (ClassNotFoundException ex) {
-            throw new IllegalStateException(settings.getDatabaseProvider().equals("db2")
-                    ? "Driver JDBC IBM DB2 não está no classpath. Obtenha o JCC licenciado da IBM e configure-o localmente; o projeto não o redistribui."
-                    : "Driver JDBC SQL Server não está disponível.", ex);
+            throw new IllegalStateException("Driver JDBC SQL Server não está disponível.", ex);
         }
         HikariConfig pool = new HikariConfig();
         pool.setJdbcUrl(url);
@@ -51,6 +49,18 @@ public class HubConfiguration {
 
     @Bean
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
+
+    @Bean
+    @ConditionalOnProperty(name = "ENTRA_ISSUER")
+    JwtDecoder entraJwtDecoder(HubSettings settings) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(settings.getEntraIssuer()).build();
+        OAuth2TokenValidator<Jwt> audienceValidator = jwt -> jwt.getAudience().contains(settings.getEntraAudience())
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Invalid audience", null));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(settings.getEntraIssuer()), audienceValidator));
+        return decoder;
+    }
 
     @Bean
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> sslCustomizer(HubSettings settings) {

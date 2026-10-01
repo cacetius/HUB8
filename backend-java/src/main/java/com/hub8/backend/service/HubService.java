@@ -94,6 +94,10 @@ public class HubService {
         audit(actor.id(), "LOGOUT", "USERS", actor.id(), null, null, ip, agent);
     }
 
+    public void recordFileAction(HubPrincipal actor, String action, String fileId, Map<String, Object> details, String ip) {
+        audit(actor.id(), action, "SHAREPOINT_FILES", fileId, null, details, ip, null);
+    }
+
     public Map<String, Object> me(HubPrincipal actor) { return actor.toMap(); }
 
     public boolean ready() { return dashboard.isReady(); }

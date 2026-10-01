@@ -1,0 +1,719 @@
+swagger: "2.0"
+info:
+  title: HUB8 API
+  description: Connector for the HUB8 Canvas App. Replace deployment and Entra placeholders before import.
+  version: "1.0.0"
+host: api.example.com
+basePath: /api/v1
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  EntraID:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize
+    tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
+    scopes:
+      api://{api-client-id}/user_impersonation: Access HUB8 API as the signed-in user
+security:
+  - EntraID:
+      - api://{api-client-id}/user_impersonation
+paths:
+  /auth/me:
+    get:
+      operationId: GetCurrentUser
+      summary: Get current user and HUB roles
+      responses:
+        "200":
+          description: Current user
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /auth/logout:
+    post:
+      operationId: Logout
+      summary: Record the current user's logout
+      responses:
+        "200":
+          description: Logout recorded
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /apps:
+    get:
+      operationId: ListApps
+      summary: List active apps
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+        - $ref: "#/parameters/search"
+      responses:
+        "200":
+          description: Paginated apps
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: CreateApp
+      summary: Create an app
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "201":
+          description: Created app
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /apps/{id}:
+    parameters:
+      - $ref: "#/parameters/id"
+    get:
+      operationId: GetApp
+      summary: Get an app
+      responses:
+        "200":
+          description: App
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    put:
+      operationId: UpdateApp
+      summary: Update an app
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "200":
+          description: Updated app
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    delete:
+      operationId: DeleteApp
+      summary: Deactivate an app
+      responses:
+        "200":
+          description: Deactivation result
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /apps/{id}/restore:
+    parameters:
+      - $ref: "#/parameters/id"
+    post:
+      operationId: RestoreApp
+      summary: Restore an app
+      responses:
+        "200":
+          description: Restored app
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /files/html:
+    get:
+      operationId: ListHtmlFiles
+      summary: List HTML modules stored in SharePoint
+      responses:
+        "200":
+          description: HTML module metadata
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: UploadHtml
+      summary: Store an HTML module in SharePoint
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - fileName
+              - content
+            properties:
+              fileName:
+                type: string
+                maxLength: 120
+                pattern: "^[A-Za-z0-9 _.-]+\\.html$"
+              content:
+                type: string
+                description: UTF-8 HTML document, maximum 3 MiB
+      responses:
+        "201":
+          description: Stored file metadata
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /files/html/{id}:
+    get:
+      operationId: DownloadHtml
+      summary: Download an HTML module from SharePoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Stored HTML document content
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /files/legacy-backups:
+    get:
+      operationId: ListLegacyBackups
+      summary: List application backups stored in SharePoint
+      responses:
+        "200":
+          description: Backup metadata
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: SaveLegacyBackup
+      summary: Save an application backup to SharePoint
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - data
+            properties:
+              data:
+                type: object
+                required:
+                  - config
+                  - apps
+                properties:
+                  config:
+                    type: object
+                    additionalProperties: true
+                  apps:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  uploads:
+                    type: object
+                    additionalProperties:
+                      type: string
+                additionalProperties: true
+      responses:
+        "201":
+          description: Stored backup metadata
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /files/legacy-backups/{id}:
+    get:
+      operationId: RestoreLegacyBackup
+      summary: Retrieve an application backup from SharePoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Restorable application backup data
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operators:
+    get:
+      operationId: ListOperators
+      summary: List active operators
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+        - $ref: "#/parameters/search"
+      responses:
+        "200":
+          description: Paginated operators
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: CreateOperator
+      summary: Create an operator
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "201":
+          description: Created operator
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operators/{id}:
+    parameters:
+      - $ref: "#/parameters/id"
+    get:
+      operationId: GetOperator
+      summary: Get an operator
+      responses:
+        "200":
+          description: Operator
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    put:
+      operationId: UpdateOperator
+      summary: Update an operator
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "200":
+          description: Updated operator
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    delete:
+      operationId: DeleteOperator
+      summary: Deactivate an operator
+      responses:
+        "200":
+          description: Deactivation result
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operators/{id}/restore:
+    parameters:
+      - $ref: "#/parameters/id"
+    post:
+      operationId: RestoreOperator
+      summary: Restore an operator
+      responses:
+        "200":
+          description: Restored operator
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operations:
+    get:
+      operationId: ListOperations
+      summary: List active operations
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+        - $ref: "#/parameters/search"
+      responses:
+        "200":
+          description: Paginated operations
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: CreateOperation
+      summary: Create an operation
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "201":
+          description: Created operation
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operations/{id}:
+    parameters:
+      - $ref: "#/parameters/id"
+    get:
+      operationId: GetOperation
+      summary: Get an operation
+      responses:
+        "200":
+          description: Operation
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    put:
+      operationId: UpdateOperation
+      summary: Update an operation
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "200":
+          description: Updated operation
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    delete:
+      operationId: DeleteOperation
+      summary: Deactivate an operation
+      responses:
+        "200":
+          description: Deactivation result
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /operations/{id}/restore:
+    parameters:
+      - $ref: "#/parameters/id"
+    post:
+      operationId: RestoreOperation
+      summary: Restore an operation
+      responses:
+        "200":
+          description: Restored operation
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /shifts:
+    get:
+      operationId: ListShifts
+      summary: List active shifts
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+      responses:
+        "200":
+          description: Paginated shifts
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: CreateShift
+      summary: Create a shift
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "201":
+          description: Created shift
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /shifts/current:
+    get:
+      operationId: GetCurrentShift
+      summary: Get the shift active at the server's local time
+      responses:
+        "200":
+          description: Current shift or null
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /shifts/{id}:
+    parameters:
+      - $ref: "#/parameters/id"
+    get:
+      operationId: GetShift
+      summary: Get a shift
+      responses:
+        "200":
+          description: Shift
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    put:
+      operationId: UpdateShift
+      summary: Update a shift
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "200":
+          description: Updated shift
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    delete:
+      operationId: DeleteShift
+      summary: Deactivate a shift
+      responses:
+        "200":
+          description: Deactivation result
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /shifts/{id}/restore:
+    parameters:
+      - $ref: "#/parameters/id"
+    post:
+      operationId: RestoreShift
+      summary: Restore a shift
+      responses:
+        "200":
+          description: Restored shift
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /dashboard/summary:
+    get:
+      operationId: GetDashboardSummary
+      summary: Get operational summary
+      responses:
+        "200":
+          description: Dashboard counts
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /audit:
+    get:
+      operationId: ListAudit
+      summary: Search audit records
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+        - name: userId
+          in: query
+          type: string
+        - name: action
+          in: query
+          type: string
+        - name: entity
+          in: query
+          type: string
+        - name: entityId
+          in: query
+          type: string
+        - name: from
+          in: query
+          type: string
+          format: date-time
+        - name: to
+          in: query
+          type: string
+          format: date-time
+      responses:
+        "200":
+          description: Paginated audit records
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /audit/entity/{entity}/{entityId}:
+    get:
+      operationId: ListAuditForEntity
+      summary: List audit records for an entity
+      parameters:
+        - name: entity
+          in: path
+          required: true
+          type: string
+        - name: entityId
+          in: path
+          required: true
+          type: string
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+      responses:
+        "200":
+          description: Paginated entity audit records
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /audit/{id}:
+    get:
+      operationId: GetAuditRecord
+      summary: Get an audit record
+      parameters:
+        - $ref: "#/parameters/id"
+      responses:
+        "200":
+          description: Audit record
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /users:
+    get:
+      operationId: ListUsers
+      summary: List users
+      parameters:
+        - $ref: "#/parameters/page"
+        - $ref: "#/parameters/pageSize"
+        - $ref: "#/parameters/search"
+      responses:
+        "200":
+          description: Paginated users
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    post:
+      operationId: CreateUser
+      summary: Create a user
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "201":
+          description: Created user
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /users/roles:
+    get:
+      operationId: ListUserRoles
+      summary: List available roles
+      responses:
+        "200":
+          description: Roles
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /users/{id}:
+    parameters:
+      - $ref: "#/parameters/id"
+    get:
+      operationId: GetUser
+      summary: Get a user
+      responses:
+        "200":
+          description: User
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    put:
+      operationId: UpdateUser
+      summary: Update a user
+      parameters:
+        - $ref: "#/parameters/body"
+      responses:
+        "200":
+          description: Updated user
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+    delete:
+      operationId: DeactivateUser
+      summary: Deactivate a user
+      responses:
+        "200":
+          description: Deactivated user
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+  /users/{id}/restore:
+    parameters:
+      - $ref: "#/parameters/id"
+    post:
+      operationId: RestoreUser
+      summary: Restore a user
+      responses:
+        "200":
+          description: Restored user
+          schema:
+            $ref: "#/definitions/SuccessEnvelope"
+        default:
+          $ref: "#/responses/ApiError"
+parameters:
+  id:
+    name: id
+    in: path
+    required: true
+    type: integer
+    format: int64
+  page:
+    name: page
+    in: query
+    type: integer
+    minimum: 1
+    default: 1
+  pageSize:
+    name: pageSize
+    in: query
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 20
+  search:
+    name: search
+    in: query
+    type: string
+  body:
+    name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      additionalProperties: true
+responses:
+  ApiError:
+    description: HUB8 API error
+    schema:
+      $ref: "#/definitions/ErrorEnvelope"
+definitions:
+  SuccessEnvelope:
+    type: object
+    required:
+      - success
+      - data
+      - message
+    properties:
+      success:
+        type: boolean
+        example: true
+      data:
+        x-nullable: true
+      message:
+        type: string
+        x-nullable: true
+  ErrorEnvelope:
+    type: object
+    required:
+      - success
+      - data
+      - message
+      - code
+    properties:
+      success:
+        type: boolean
+        example: false
+      data:
+        type: object
+        x-nullable: true
+      message:
+        type: string
+      code:
+        type: string
+x-ms-connector-metadata:
+  - propertyName: Website
+    propertyValue: https://learn.microsoft.com/connectors/custom-connectors/
+  - propertyName: Privacy policy
+    propertyValue: https://example.com/privacy
+  - propertyName: Categories
+    propertyValue: Productivity

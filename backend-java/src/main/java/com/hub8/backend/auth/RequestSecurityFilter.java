@@ -19,23 +19,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class RequestSecurityFilter extends OncePerRequestFilter {
     private static final long MAX_BODY = 2L * 1024 * 1024;
+    private static final long MAX_FILE_BODY = 10L * 1024 * 1024;
     private final JdbcTemplate jdbc;
     private final JwtTokens tokens;
     private final HubSettings settings;
     private final ObjectMapper mapper;
     private final Map<String, Window> rate = new ConcurrentHashMap<>();
+    private JwtDecoder entraJwtDecoder;
 
     public RequestSecurityFilter(JdbcTemplate jdbc, JwtTokens tokens, HubSettings settings, ObjectMapper mapper) {
         this.jdbc = jdbc;
         this.tokens = tokens;
         this.settings = settings;
         this.mapper = mapper;
+    }
+
+    @Autowired(required = false)
+    void setEntraJwtDecoder(JwtDecoder entraJwtDecoder) {
+        this.entraJwtDecoder = entraJwtDecoder;
     }
 
     @Override
@@ -66,15 +77,16 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
             writeError(response, 429, "RATE_LIMITED", "Limite de requisições excedido.");
             return;
         }
-        if (request.getContentLengthLong() > MAX_BODY) {
-            writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede 2 MB.");
+        long bodyLimit = bodyLimit(request);
+        if (request.getContentLengthLong() > bodyLimit) {
+            writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede o limite permitido.");
             return;
         }
         if (isLogin(request)) {
             try {
-                chain.doFilter(new LimitedBodyRequest(request), response);
+                chain.doFilter(new LimitedBodyRequest(request, bodyLimit), response);
             } catch (RequestBodyTooLargeException ex) {
-                writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede 2 MB.");
+                writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede o limite permitido.");
             }
             return;
         }
@@ -82,10 +94,7 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
             String authorization = request.getHeader("Authorization");
             if (authorization == null || !authorization.startsWith("Bearer "))
                 throw ApiException.unauthenticated("Não autenticado.");
-            Map<String, Object> claims = tokens.verify(authorization.substring(7));
-            if (!(claims.get("id") instanceof Number tokenId))
-                throw ApiException.expired("Sessão inválida ou expirada.");
-            long id = tokenId.longValue();
+            long id = authenticatedUserId(authorization.substring(7));
             List<Map<String, Object>> users = jdbc.queryForList(
                     "SELECT ID, USERNAME, DISPLAY_NAME FROM USERS WHERE ID = ? AND ACTIVE = 1", id);
             if (users.size() != 1) throw ApiException.expired("Conta inexistente ou desativada.");
@@ -99,14 +108,39 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
             String required = permission(request.getRequestURI(), request.getMethod());
             if (required != null && !principal.permissions().contains(required)) throw ApiException.forbidden();
             request.setAttribute("hubPrincipal", principal);
-            chain.doFilter(new LimitedBodyRequest(request), response);
+            chain.doFilter(new LimitedBodyRequest(request, bodyLimit), response);
         } catch (ApiException ex) {
             writeError(response, ex.getStatus(), ex.getCode(), ex.getMessage());
         } catch (RequestBodyTooLargeException ex) {
-            writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede 2 MB.");
+            writeError(response, 413, "PAYLOAD_TOO_LARGE", "Corpo da requisição excede o limite permitido.");
         } catch (Exception ex) {
             logger.error("Falha de autenticação/autorização", ex);
             writeError(response, 500, "INTERNAL_ERROR", "Erro interno do servidor.");
+        }
+    }
+
+    private long authenticatedUserId(String token) {
+        try {
+            Map<String, Object> claims = tokens.verify(token);
+            if (claims.get("id") instanceof Number tokenId) return tokenId.longValue();
+        } catch (ApiException invalidHubToken) {
+            if (entraJwtDecoder == null) throw invalidHubToken;
+        }
+
+        if (entraJwtDecoder == null) throw ApiException.expired("Sessão inválida ou expirada.");
+        try {
+            Jwt entraToken = entraJwtDecoder.decode(token);
+            String username = entraToken.getClaimAsString("preferred_username");
+            if (username == null || username.isBlank()) username = entraToken.getClaimAsString("upn");
+            if (username == null || username.isBlank()) throw ApiException.expired("Conta Microsoft sem UPN válido.");
+            List<Map<String, Object>> users = jdbc.queryForList(
+                    "SELECT ID FROM USERS WHERE USERNAME = ? AND ACTIVE = 1", username);
+            if (users.size() != 1) throw ApiException.expired("Conta sem usuário HUB ativo associado.");
+            Object id = users.get(0).get("ID");
+            if (!(id instanceof Number userId)) throw ApiException.expired("Conta Microsoft sem usuário HUB associado.");
+            return userId.longValue();
+        } catch (JwtException ex) {
+            throw ApiException.expired("Sessão Microsoft inválida ou expirada.");
         }
     }
 
@@ -114,9 +148,17 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
         return req.getMethod().equals("POST") && req.getRequestURI().equals("/api/v1/auth/login");
     }
 
+    private static long bodyLimit(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/api/v1/files/") ? MAX_FILE_BODY : MAX_BODY;
+    }
+
     private String permission(String path, String method) {
         if (path.startsWith("/api/v1/auth/")) return null;
         if (path.equals("/api/v1/dashboard/summary")) return "reports.view";
+        if (path.equals("/api/v1/files/html") || path.startsWith("/api/v1/files/html/"))
+            return method.equals("GET") ? "apps.view" : method.equals("POST") ? "apps.create" : null;
+        if (path.equals("/api/v1/files/legacy-backups") || path.startsWith("/api/v1/files/legacy-backups/"))
+            return "system.manage";
         if (path.equals("/api/v1/users") || path.startsWith("/api/v1/users/")) return "users.manage";
         if (path.equals("/api/v1/audit") || path.startsWith("/api/v1/audit/")) return "audit.view";
         if (path.equals("/api/v1/apps") || path.startsWith("/api/v1/apps/"))
@@ -178,13 +220,17 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
     private record Window(long start, int count) {}
 
     private static final class LimitedBodyRequest extends HttpServletRequestWrapper {
+        private final long limit;
         private LimitedBodyStream stream;
 
-        private LimitedBodyRequest(HttpServletRequest request) { super(request); }
+        private LimitedBodyRequest(HttpServletRequest request, long limit) {
+            super(request);
+            this.limit = limit;
+        }
 
         @Override
         public ServletInputStream getInputStream() throws IOException {
-            if (stream == null) stream = new LimitedBodyStream(super.getInputStream());
+            if (stream == null) stream = new LimitedBodyStream(super.getInputStream(), limit);
             return stream;
         }
 
@@ -197,13 +243,17 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
 
     private static final class LimitedBodyStream extends ServletInputStream {
         private final ServletInputStream source;
+        private final long limit;
         private long consumed;
 
-        private LimitedBodyStream(ServletInputStream source) { this.source = source; }
+        private LimitedBodyStream(ServletInputStream source, long limit) {
+            this.source = source;
+            this.limit = limit;
+        }
 
         @Override
         public int read() throws IOException {
-            if (consumed == MAX_BODY) {
+            if (consumed == limit) {
                 if (source.read() == -1) return -1;
                 throw new RequestBodyTooLargeException();
             }
@@ -215,11 +265,11 @@ public class RequestSecurityFilter extends OncePerRequestFilter {
         @Override
         public int read(byte[] bytes, int offset, int length) throws IOException {
             if (length == 0) return 0;
-            if (consumed == MAX_BODY) {
+            if (consumed == limit) {
                 if (source.read() == -1) return -1;
                 throw new RequestBodyTooLargeException();
             }
-            int limited = (int) Math.min(length, MAX_BODY - consumed);
+            int limited = (int) Math.min(length, limit - consumed);
             int count = source.read(bytes, offset, limited);
             if (count > 0) consumed += count;
             return count;

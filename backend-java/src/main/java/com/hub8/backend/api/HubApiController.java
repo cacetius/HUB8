@@ -1,9 +1,12 @@
 package com.hub8.backend.api;
 
 import com.hub8.backend.auth.HubPrincipal;
+import com.hub8.backend.persistence.SharePointFileStore;
 import com.hub8.backend.service.HubService;
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,12 +18,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping
 public class HubApiController {
     private final HubService service;
-    public HubApiController(HubService service) { this.service = service; }
+    private final SharePointFileStore files;
+    private final ObjectMapper mapper;
+    public HubApiController(HubService service, SharePointFileStore files, ObjectMapper mapper) {
+        this.service = service;
+        this.files = files;
+        this.mapper = mapper;
+    }
 
     @GetMapping("/health")
     public Map<String, Object> health() { return Map.of("status", "ok"); }
@@ -225,6 +236,84 @@ public class HubApiController {
         return ApiResponses.ok(service.getUser(id(id, "id")));
     }
 
+    @PostMapping("/api/v1/files/html")
+    public ResponseEntity<Map<String, Object>> uploadHtml(@RequestBody(required = false) Object body,
+            HttpServletRequest request) {
+        Map<String, Object> input = objectBody(body);
+        String fileName = fileName(input.get("fileName"), ".html");
+        String html = requiredText(input.get("content"), "content");
+        byte[] content = html.getBytes(StandardCharsets.UTF_8);
+        if (content.length > 3 * 1024 * 1024)
+            throw ApiException.validation("O HTML não pode exceder 3 MB.");
+        String normalized = html.stripLeading().toLowerCase(java.util.Locale.ROOT);
+        if (!(normalized.startsWith("<!doctype html") || normalized.startsWith("<html") || normalized.startsWith("<head")
+                || normalized.startsWith("<body")))
+            throw ApiException.validation("O arquivo precisa conter um documento HTML.");
+        Map<String, Object> stored = files.uploadHtml(fileName, content);
+        service.recordFileAction(principal(request), "UPLOAD", String.valueOf(stored.get("id")),
+                Map.of("name", stored.get("name"), "size", stored.get("size")), request.getRemoteAddr());
+        return ApiResponses.created(stored);
+    }
+
+    @GetMapping("/api/v1/files/html")
+    public ResponseEntity<Map<String, Object>> listHtmlFiles() {
+        return ApiResponses.ok(files.listHtml());
+    }
+
+    @GetMapping("/api/v1/files/html/{id}")
+    public ResponseEntity<Map<String, Object>> downloadHtml(@PathVariable String id, HttpServletRequest request) {
+        SharePointFileStore.StoredFile stored = files.downloadHtml(id);
+        String content = new String(stored.content(), StandardCharsets.UTF_8);
+        service.recordFileAction(principal(request), "DOWNLOAD", id,
+                Map.of("size", stored.content().length), request.getRemoteAddr());
+        return ApiResponses.ok(Map.of("id", id, "contentType", stored.contentType(), "content", content));
+    }
+
+    @PostMapping("/api/v1/files/legacy-backups")
+    public ResponseEntity<Map<String, Object>> saveLegacyBackup(@RequestBody(required = false) Object body,
+            HttpServletRequest request) {
+        Map<String, Object> input = objectBody(body);
+        Object rawData = input.get("data");
+        if (!(rawData instanceof Map<?, ?> data) || !(data.get("config") instanceof Map<?, ?>)
+                || !(data.get("apps") instanceof List<?>))
+            throw ApiException.validation("Backup inválido: são necessários os campos config e apps.");
+        byte[] content;
+        try {
+            content = mapper.writeValueAsBytes(rawData);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw ApiException.validation("Não foi possível serializar o backup.");
+        }
+        if (content.length > 8 * 1024 * 1024)
+            throw ApiException.validation("O backup não pode exceder 8 MB.");
+        String name = "fahrwerk_hub_" + java.time.Instant.now().toString().replace(':', '-') + ".json";
+        Map<String, Object> stored = files.uploadBackup(name, content);
+        service.recordFileAction(principal(request), "BACKUP_UPLOAD", String.valueOf(stored.get("id")),
+                Map.of("name", stored.get("name"), "size", stored.get("size")), request.getRemoteAddr());
+        return ApiResponses.created(stored);
+    }
+
+    @GetMapping("/api/v1/files/legacy-backups")
+    public ResponseEntity<Map<String, Object>> listLegacyBackups() {
+        return ApiResponses.ok(files.listBackups());
+    }
+
+    @GetMapping("/api/v1/files/legacy-backups/{id}")
+    public ResponseEntity<Map<String, Object>> restoreLegacyBackup(@PathVariable String id,
+            HttpServletRequest request) {
+        SharePointFileStore.StoredFile stored = files.downloadBackup(id);
+        Map<String, Object> backup;
+        try {
+            backup = mapper.readValue(stored.content(), new TypeReference<>() {});
+        } catch (java.io.IOException ex) {
+            throw ApiException.validation("O arquivo selecionado não contém um backup JSON válido.");
+        }
+        if (!(backup.get("config") instanceof Map<?, ?>) || !(backup.get("apps") instanceof List<?>))
+            throw ApiException.validation("Backup inválido: são necessários os campos config e apps.");
+        service.recordFileAction(principal(request), "BACKUP_DOWNLOAD", id,
+                Map.of("size", stored.content().length), request.getRemoteAddr());
+        return ApiResponses.ok(Map.of("id", id, "data", backup));
+    }
+
     @PostMapping("/api/v1/users")
     public ResponseEntity<Map<String, Object>> createUser(@RequestBody(required = false) Object body,
             HttpServletRequest request) {
@@ -261,6 +350,21 @@ public class HubApiController {
             values.put(name, value);
         });
         return values;
+    }
+
+    private static String requiredText(Object value, String field) {
+        if (!(value instanceof String text) || text.isBlank())
+            throw ApiException.validation(field + " é obrigatório.");
+        return text;
+    }
+
+    private static String fileName(Object value, String extension) {
+        String name = requiredText(value, "fileName").trim();
+        if (name.length() > 120 || name.contains("/") || name.contains("\\")
+                || !name.toLowerCase(java.util.Locale.ROOT).endsWith(extension)
+                || !name.matches("[A-Za-z0-9 _.-]+"))
+            throw ApiException.validation("Nome de arquivo inválido.");
+        return name;
     }
 
     private static Map<String, Object> loginBody(Object body) {
